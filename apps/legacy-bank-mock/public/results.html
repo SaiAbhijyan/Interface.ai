@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Lookup Results</title>
+  <style>
+    body { font-family: "Courier New", monospace; font-size: 13px; margin: 8px; background: #ffffe0; }
+    table.grid { border-collapse: collapse; width: 100%; background: #fff; }
+    table.grid th, table.grid td { border: 1px solid #808080; padding: 4px 8px; text-align: left; }
+    table.grid th { background: #d4d0c8; }
+    .notfound { color: #cc0000; font-weight: bold; margin: 12px 0; }
+    .ok { color: #006600; }
+  </style>
+</head>
+<body>
+  <div id="content">Loading…</div>
+  <script src="bank-logic.js"></script>
+  <script>
+    (function () {
+      function text(el, s) { el.textContent = s; return el; }
+      function el(tag, attrs) {
+        var n = document.createElement(tag);
+        if (attrs) {
+          Object.keys(attrs).forEach(function (k) {
+            if (k === "text") n.textContent = attrs[k];
+            else n.setAttribute(k, attrs[k]);
+          });
+        }
+        return n;
+      }
+      var params = new URLSearchParams(location.search);
+      var id = params.get("memberId") || "";
+      var member = window.BankLogic.findMember(id);
+      var root = document.getElementById("content");
+      root.textContent = "";
+      if (!member) {
+        var p = el("p", { "class": "notfound", role: "alert" });
+        text(p, "MEMBER NOT FOUND — No record for Member ID " + id);
+        root.appendChild(p);
+        var code = el("p");
+        code.appendChild(document.createTextNode("Return code: "));
+        var b = el("b");
+        text(b, "MEM_NOT_FOUND");
+        code.appendChild(b);
+        root.appendChild(code);
+        return;
+      }
+      var savings = member.accounts.find(function (a) { return a.type === "SAVINGS"; });
+      var bal = savings ? savings.balance : "N/A";
+      root.appendChild(text(el("p", { "class": "ok" }), "Member located."));
+      var table = el("table", { "class": "grid", role: "table" });
+      var hdr = el("tr");
+      hdr.appendChild(text(el("th"), "Field"));
+      hdr.appendChild(text(el("th"), "Value"));
+      table.appendChild(hdr);
+      function row(k, v) {
+        var tr = el("tr");
+        tr.appendChild(text(el("td"), k));
+        tr.appendChild(text(el("td"), v));
+        table.appendChild(tr);
+      }
+      row("Member ID", member.id);
+      row("Name", member.name);
+      row("Status", member.status);
+      var balRow = el("tr");
+      balRow.appendChild(text(el("td"), "Savings Balance"));
+      var balTd = el("td");
+      var strong = el("strong", { "aria-label": "Savings Balance" });
+      text(strong, bal);
+      balTd.appendChild(strong);
+      balRow.appendChild(balTd);
+      table.appendChild(balRow);
+      root.appendChild(table);
+      var acct = el("p");
+      acct.appendChild(document.createTextNode("Primary savings account: "));
+      var span = el("span", { "aria-label": "Savings Account Number" });
+      text(span, savings ? savings.number : "—");
+      acct.appendChild(span);
+      root.appendChild(acct);
+    })();
+  </script>
+</body>
+</html>

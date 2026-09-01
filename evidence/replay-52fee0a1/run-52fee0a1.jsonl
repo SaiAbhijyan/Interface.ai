@@ -1,0 +1,2 @@
+{"ts":"2026-09-01T19:42:00.922Z","level":"info","runId":"52fee0a1","phase":"replay","message":"Starting deterministic replay","data":{"capability":"lookup_member_savings_balance","entryUrl":"http://127.0.0.1:4173","params":{"memberId":"10001"}}}
+{"ts":"2026-09-01T19:42:01.026Z","level":"error","runId":"52fee0a1","phase":"replay","message":"Unhandled replay error","data":{"msg":"goto: net::ERR_CONNECTION_REFUSED at http://127.0.0.1:4173/\nCall log:\n  - navigating to \"http://127.0.0.1:4173/\", waiting until \"domcontentloaded\"\n"}}

@@ -1,0 +1,276 @@
+{
+  "version": "1.0.0",
+  "name": "open_member_sub_account",
+  "description": "Open a new sub-account for a member through the wizard and reach the confirmation/complete screen.",
+  "target": {
+    "kind": "web",
+    "entryUrl": "http://127.0.0.1:4173",
+    "appId": "legacy-bank-mock"
+  },
+  "parameters": [
+    {
+      "name": "memberId",
+      "type": "string",
+      "description": "Member ID",
+      "required": true,
+      "sensitive": false
+    },
+    {
+      "name": "accountType",
+      "type": "string",
+      "description": "Account type label (Savings, Checking, Money Market)",
+      "required": true,
+      "sensitive": false
+    },
+    {
+      "name": "productCode",
+      "type": "string",
+      "description": "Product code e.g. SAV-01",
+      "required": true,
+      "sensitive": false
+    }
+  ],
+  "outputs": [
+    {
+      "name": "confirmationCode",
+      "type": "string",
+      "description": "Confirmation code after submit",
+      "locator": {
+        "strategy": "label",
+        "value": "Confirmation Code",
+        "alternatives": [
+          {
+            "strategy": "text",
+            "value": "CNF-"
+          }
+        ]
+      }
+    },
+    {
+      "name": "newAccountNumber",
+      "type": "string",
+      "description": "New account number",
+      "locator": {
+        "strategy": "label",
+        "value": "New Account Number",
+        "alternatives": []
+      }
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "navigate",
+      "description": "Open sub-account wizard",
+      "url": "http://127.0.0.1:4173/open-account.html",
+      "irreversible": false,
+      "recoverableHints": []
+    },
+    {
+      "id": "s2",
+      "action": "fill",
+      "description": "Enter Member ID",
+      "locator": {
+        "strategy": "label",
+        "value": "Member ID",
+        "alternatives": [
+          {
+            "strategy": "css",
+            "value": "#oaMemberId"
+          }
+        ]
+      },
+      "paramRef": "memberId",
+      "irreversible": false,
+      "recoverableHints": []
+    },
+    {
+      "id": "s3",
+      "action": "click",
+      "description": "Continue from step 1",
+      "locator": {
+        "strategy": "role_name",
+        "value": "Continue",
+        "role": "button",
+        "alternatives": []
+      },
+      "checkpoint": {
+        "id": "step2",
+        "description": "Account details step visible",
+        "locator": {
+          "strategy": "text",
+          "value": "Account Details",
+          "alternatives": [
+            {
+              "strategy": "text",
+              "value": "Account Type"
+            }
+          ]
+        },
+        "businessOutcomes": [
+          {
+            "pattern": "MEMBER NOT FOUND|MEM_NOT_FOUND",
+            "code": "MEM_NOT_FOUND",
+            "message": "No member exists for the given Member ID"
+          },
+          {
+            "pattern": "Validation Error",
+            "code": "VALIDATION_ERROR",
+            "message": "Form validation failed"
+          }
+        ]
+      },
+      "irreversible": false,
+      "recoverableHints": []
+    },
+    {
+      "id": "s4",
+      "action": "select",
+      "description": "Choose account type",
+      "locator": {
+        "strategy": "label",
+        "value": "Account Type",
+        "alternatives": [
+          {
+            "strategy": "role_name",
+            "value": "Account Type",
+            "role": "combobox"
+          }
+        ]
+      },
+      "paramRef": "accountType",
+      "irreversible": false,
+      "recoverableHints": []
+    },
+    {
+      "id": "s5",
+      "action": "fill",
+      "description": "Enter product code",
+      "locator": {
+        "strategy": "label",
+        "value": "Product Code",
+        "alternatives": [
+          {
+            "strategy": "css",
+            "value": "#oaProduct"
+          }
+        ]
+      },
+      "paramRef": "productCode",
+      "irreversible": false,
+      "recoverableHints": []
+    },
+    {
+      "id": "s6",
+      "action": "click",
+      "description": "Review",
+      "locator": {
+        "strategy": "role_name",
+        "value": "Review",
+        "role": "button",
+        "alternatives": []
+      },
+      "irreversible": false,
+      "recoverableHints": []
+    },
+    {
+      "id": "s7",
+      "action": "click",
+      "description": "Confirm & Submit (irreversible)",
+      "locator": {
+        "strategy": "role_name",
+        "value": "Confirm & Submit",
+        "role": "button",
+        "alternatives": [
+          {
+            "strategy": "text",
+            "value": "Confirm"
+          }
+        ]
+      },
+      "irreversible": true,
+      "recoverableHints": []
+    },
+    {
+      "id": "s8",
+      "action": "extract",
+      "description": "Read confirmation code",
+      "locator": {
+        "strategy": "label",
+        "value": "Confirmation Code",
+        "alternatives": []
+      },
+      "outputName": "confirmationCode",
+      "irreversible": false,
+      "recoverableHints": []
+    },
+    {
+      "id": "s9",
+      "action": "extract",
+      "description": "Read new account number",
+      "locator": {
+        "strategy": "label",
+        "value": "New Account Number",
+        "alternatives": []
+      },
+      "outputName": "newAccountNumber",
+      "irreversible": false,
+      "recoverableHints": []
+    }
+  ],
+  "successCheckpoint": {
+    "id": "success",
+    "description": "Sub-account opened confirmation visible",
+    "locator": {
+      "strategy": "text",
+      "value": "Sub-Account Opened",
+      "alternatives": [
+        {
+          "strategy": "text",
+          "value": "Status: COMPLETE"
+        }
+      ]
+    },
+    "expectText": "COMPLETE",
+    "businessOutcomes": [
+      {
+        "pattern": "MEMBER NOT FOUND|MEM_NOT_FOUND",
+        "code": "MEM_NOT_FOUND",
+        "message": "No member exists for the given Member ID"
+      }
+    ]
+  },
+  "locatorStrategyMeta": {
+    "preferredOrder": [
+      "role_name",
+      "label",
+      "text",
+      "css"
+    ],
+    "notes": "Wizard is multi-step; Confirm & Submit is irreversible and requires confirmation flag."
+  },
+  "safety": {
+    "allowedOrigins": [
+      "http://127.0.0.1:4173",
+      "http://localhost:4173"
+    ],
+    "allowedActions": [
+      "navigate",
+      "click",
+      "fill",
+      "select",
+      "press",
+      "wait_for",
+      "extract",
+      "assert",
+      "dismiss_if_present"
+    ],
+    "requiresConfirmationForIrreversible": true
+  },
+  "metadata": {
+    "discoveredAt": "2026-09-01T19:39:42.166Z",
+    "goal": "open a new sub-account and reach confirmation",
+    "model": "synthetic-fixture",
+    "synthetic": true
+  }
+}

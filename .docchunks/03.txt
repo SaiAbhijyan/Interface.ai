@@ -1,0 +1,8 @@
+## Discover then Replay
+
+Discover live:
+npm run discover -- --goal "look up member 10001 and read their current savings balance" --url http://127.0.0.1:4173 --param memberId=10001
+
+Discover without key:
+npm run discover -- --goal "look up member and read savings balance" --url http://127.0.0.1:4173 --param memberId=10001 --synthetic-fallback
+

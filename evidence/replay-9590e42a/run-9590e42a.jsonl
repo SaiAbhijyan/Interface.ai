@@ -1,0 +1,13 @@
+{"ts":"2026-09-01T19:46:06.353Z","level":"info","runId":"9590e42a","phase":"replay","message":"Starting deterministic replay","data":{"capability":"open_member_sub_account","entryUrl":"http://127.0.0.1:4173","params":{"memberId":"10001","accountType":"Savings","productCode":"SAV-01"}}}
+{"ts":"2026-09-01T19:46:06.450Z","level":"info","runId":"9590e42a","phase":"replay","message":"Step s1: navigate — Open sub-account wizard"}
+{"ts":"2026-09-01T19:46:06.621Z","level":"info","runId":"9590e42a","phase":"replay","message":"Step s2: fill — Enter Member ID"}
+{"ts":"2026-09-01T19:46:06.803Z","level":"info","runId":"9590e42a","phase":"replay","message":"Step s3: click — Continue from step 1"}
+{"ts":"2026-09-01T19:46:07.028Z","level":"info","runId":"9590e42a","phase":"replay","message":"Step s4: select — Choose account type"}
+{"ts":"2026-09-01T19:46:07.183Z","level":"info","runId":"9590e42a","phase":"replay","message":"Step s5: fill — Enter product code"}
+{"ts":"2026-09-01T19:46:07.345Z","level":"info","runId":"9590e42a","phase":"replay","message":"Step s6: click — Review"}
+{"ts":"2026-09-01T19:46:07.537Z","level":"info","runId":"9590e42a","phase":"replay","message":"Step s7: click — Confirm & Submit (irreversible)"}
+{"ts":"2026-09-01T19:46:07.716Z","level":"info","runId":"9590e42a","phase":"replay","message":"Step s8: extract — Read confirmation code"}
+{"ts":"2026-09-01T19:46:07.720Z","level":"info","runId":"9590e42a","phase":"replay","message":"Extracted confirmationCode","data":{"preview":"CNF-MTJ2V58R-101"}}
+{"ts":"2026-09-01T19:46:07.870Z","level":"info","runId":"9590e42a","phase":"replay","message":"Step s9: extract — Read new account number"}
+{"ts":"2026-09-01T19:46:07.874Z","level":"info","runId":"9590e42a","phase":"replay","message":"Extracted newAccountNumber","data":{"preview":"SAV-10001-101"}}
+{"ts":"2026-09-01T19:46:08.041Z","level":"info","runId":"9590e42a","phase":"replay","message":"Replay succeeded","data":{"outputs":{"confirmationCode":"CNF-MTJ2V58R-101","newAccountNumber":"SAV-10001-101"}}}

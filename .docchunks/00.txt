@@ -1,0 +1,4 @@
+# Interface.ai — Computer-Use Automation (Take-Home)
+
+End-to-end vertical slice with LLM discovery, CapabilityArtifact, deterministic replay, hostile mock bank, allowlist, redaction, HITL.
+

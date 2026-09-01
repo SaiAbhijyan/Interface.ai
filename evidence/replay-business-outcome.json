@@ -1,0 +1,11 @@
+{
+  "status": "business_outcome",
+  "businessOutcome": {
+    "code": "MEM_NOT_FOUND",
+    "message": "No member exists for the given Member ID"
+  },
+  "evidence": {
+    "logPath": "/workspace/Interface.ai/evidence/replay-f451f4d2/run-f451f4d2.jsonl"
+  },
+  "durationMs": 744
+}

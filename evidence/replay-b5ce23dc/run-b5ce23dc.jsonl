@@ -1,0 +1,5 @@
+{"ts":"2026-09-01T19:47:11.706Z","level":"info","runId":"b5ce23dc","phase":"replay","message":"Starting deterministic replay","data":{"capability":"lookup_member_savings_balance","entryUrl":"http://127.0.0.1:4173","params":{"memberId":"99999"}}}
+{"ts":"2026-09-01T19:47:11.828Z","level":"info","runId":"b5ce23dc","phase":"replay","message":"Step s1: navigate — Open Member Lookup"}
+{"ts":"2026-09-01T19:47:12.021Z","level":"info","runId":"b5ce23dc","phase":"replay","message":"Step s2: fill — Enter Member ID"}
+{"ts":"2026-09-01T19:47:12.210Z","level":"info","runId":"b5ce23dc","phase":"replay","message":"Step s3: click — Click Search"}
+{"ts":"2026-09-01T19:47:12.477Z","level":"info","runId":"b5ce23dc","phase":"replay","message":"Business outcome at checkpoint","data":{"code":"MEM_NOT_FOUND","message":"No member exists for the given Member ID"}}

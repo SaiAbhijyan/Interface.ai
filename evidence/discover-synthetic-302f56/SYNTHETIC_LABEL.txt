@@ -1,0 +1,6 @@
+SYNTHETIC DISCOVERY EVIDENCE
+This artifact was generated without a live LLM because OPENAI_API_KEY was not set.
+The step sequence matches a validated manual traversal of the legacy-bank-mock.
+Replay against the live mock is still real and deterministic.
+goal: look up member and read savings balance
+generatedAt: 2026-09-01T19:39:42.165Z

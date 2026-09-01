@@ -1,0 +1,205 @@
+{
+  "version": "1.0.0",
+  "name": "lookup_member_savings_balance",
+  "description": "Look up a member by Member ID on the legacy CoreBank console and return their savings balance from the results iframe.",
+  "target": {
+    "kind": "web",
+    "entryUrl": "http://127.0.0.1:4173",
+    "appId": "legacy-bank-mock"
+  },
+  "parameters": [
+    {
+      "name": "memberId",
+      "type": "string",
+      "description": "Member ID (4–8 digits)",
+      "required": true,
+      "sensitive": false
+    }
+  ],
+  "outputs": [
+    {
+      "name": "savingsBalance",
+      "type": "string",
+      "description": "Current savings balance as displayed",
+      "locator": {
+        "strategy": "label",
+        "value": "Savings Balance",
+        "frame": "Lookup Results",
+        "alternatives": [
+          {
+            "strategy": "text",
+            "value": "$",
+            "frame": "Lookup Results"
+          }
+        ],
+        "reasoning": "Balance is in a strong with aria-label inside the results iframe"
+      }
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "navigate",
+      "description": "Open Member Lookup",
+      "url": "http://127.0.0.1:4173/lookup.html",
+      "irreversible": false,
+      "recoverableHints": []
+    },
+    {
+      "id": "s2",
+      "action": "fill",
+      "description": "Enter Member ID",
+      "locator": {
+        "strategy": "label",
+        "value": "Member ID",
+        "alternatives": [
+          {
+            "strategy": "role_name",
+            "value": "Member ID",
+            "role": "textbox"
+          },
+          {
+            "strategy": "css",
+            "value": "#memberIdField"
+          }
+        ],
+        "reasoning": "Label association is stable on this form; CSS id is last-resort fallback only"
+      },
+      "paramRef": "memberId",
+      "irreversible": false,
+      "recoverableHints": []
+    },
+    {
+      "id": "s3",
+      "action": "click",
+      "description": "Click Search",
+      "locator": {
+        "strategy": "role_name",
+        "value": "Search",
+        "role": "button",
+        "alternatives": [
+          {
+            "strategy": "text",
+            "value": "Search"
+          }
+        ],
+        "reasoning": "Button accessible name is unique on the page"
+      },
+      "checkpoint": {
+        "id": "after-search",
+        "description": "Results iframe populated (member found or not found)",
+        "locator": {
+          "strategy": "text",
+          "value": "Member",
+          "frame": "Lookup Results",
+          "alternatives": [
+            {
+              "strategy": "text",
+              "value": "MEMBER NOT FOUND",
+              "frame": "Lookup Results"
+            },
+            {
+              "strategy": "text",
+              "value": "Savings Balance",
+              "frame": "Lookup Results"
+            }
+          ]
+        },
+        "businessOutcomes": [
+          {
+            "pattern": "MEMBER NOT FOUND|MEM_NOT_FOUND",
+            "code": "MEM_NOT_FOUND",
+            "message": "No member exists for the given Member ID"
+          },
+          {
+            "pattern": "Validation Error",
+            "code": "VALIDATION_ERROR",
+            "message": "Form validation failed"
+          }
+        ]
+      },
+      "irreversible": false,
+      "recoverableHints": []
+    },
+    {
+      "id": "s4",
+      "action": "extract",
+      "description": "Read savings balance from results iframe",
+      "locator": {
+        "strategy": "label",
+        "value": "Savings Balance",
+        "frame": "Lookup Results",
+        "alternatives": [
+          {
+            "strategy": "css",
+            "value": "strong[aria-label=\"Savings Balance\"]",
+            "frame": "Lookup Results"
+          }
+        ],
+        "reasoning": "aria-label on strong is intentional accessibility hook without data-testid"
+      },
+      "outputName": "savingsBalance",
+      "irreversible": false,
+      "recoverableHints": []
+    }
+  ],
+  "successCheckpoint": {
+    "id": "success",
+    "description": "Member located and savings balance visible",
+    "locator": {
+      "strategy": "text",
+      "value": "Member located",
+      "frame": "Lookup Results",
+      "alternatives": [
+        {
+          "strategy": "text",
+          "value": "Savings Balance",
+          "frame": "Lookup Results"
+        }
+      ]
+    },
+    "expectText": "Member located",
+    "businessOutcomes": [
+      {
+        "pattern": "MEMBER NOT FOUND|MEM_NOT_FOUND",
+        "code": "MEM_NOT_FOUND",
+        "message": "No member exists for the given Member ID"
+      }
+    ]
+  },
+  "locatorStrategyMeta": {
+    "preferredOrder": [
+      "role_name",
+      "label",
+      "frame_role_name",
+      "text",
+      "placeholder",
+      "css"
+    ],
+    "notes": "Hostile legacy UI: table layout, results in iframe titled Lookup Results, no test ids. Prefer roles/labels; CSS ids only as fallback."
+  },
+  "safety": {
+    "allowedOrigins": [
+      "http://127.0.0.1:4173",
+      "http://localhost:4173"
+    ],
+    "allowedActions": [
+      "navigate",
+      "click",
+      "fill",
+      "select",
+      "press",
+      "wait_for",
+      "extract",
+      "assert",
+      "dismiss_if_present"
+    ],
+    "requiresConfirmationForIrreversible": true
+  },
+  "metadata": {
+    "discoveredAt": "2026-09-01T19:39:41.948Z",
+    "goal": "look up member and read savings balance",
+    "model": "synthetic-fixture",
+    "synthetic": true
+  }
+}

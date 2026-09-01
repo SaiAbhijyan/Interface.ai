@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Open Sub-Account — CoreBank</title>
+  <style>
+    body { font-family: "Times New Roman", serif; background: #c0c0c0; margin: 0; }
+    .banner { background: #000080; color: #fff; padding: 8px 12px; font-weight: bold; }
+    table.layout { width: 100%; border-collapse: collapse; }
+    td.nav { width: 180px; background: #d4d0c8; vertical-align: top; border-right: 2px solid #808080; padding: 10px; }
+    td.nav a { display: block; color: #000080; margin: 6px 0; }
+    td.main { padding: 12px; background: #ffffff; vertical-align: top; }
+    fieldset { border: 2px groove #808080; padding: 12px; margin-bottom: 12px; }
+    .err { color: #cc0000; font-weight: bold; }
+    .step { display: none; }
+    .step.active { display: block; }
+    .confirm-box { border: 3px double #000080; padding: 16px; background: #e8e8ff; }
+  </style>
+</head>
+<body>
+  <div class="banner">CoreBank — Open Sub-Account</div>
+  <table class="layout" role="presentation">
+    <tr>
+      <td class="nav">
+        <b>Menu</b><br/>
+        <a href="lookup.html">Member Lookup</a>
+        <a href="open-account.html">Open Sub-Account</a>
+        <a href="index.html">Home</a>
+      </td>
+      <td class="main">
+        <h2>Open Sub-Account Wizard</h2>
+
+        <div id="step1" class="step active">
+          <fieldset>
+            <legend>Step 1 — Identify Member</legend>
+            <table role="presentation">
+              <tr>
+                <td><label for="oaMemberId">Member ID:</label></td>
+                <td><input type="text" id="oaMemberId" size="20" /></td>
+              </tr>
+            </table>
+            <p id="oaErr1" class="err" hidden></p>
+            <button type="button" id="oaNext1">Continue</button>
+          </fieldset>
+        </div>
+
+        <div id="step2" class="step">
+          <fieldset>
+            <legend>Step 2 — Account Details</legend>
+            <p>Member: <strong id="oaMemberName"></strong></p>
+            <table role="presentation">
+              <tr>
+                <td><label for="oaType">Account Type:</label></td>
+                <td>
+                  <select id="oaType">
+                    <option value="">— select —</option>
+                    <option value="SAVINGS">Savings</option>
+                    <option value="CHECKING">Checking</option>
+                    <option value="MONEY_MARKET">Money Market</option>
+                  </select>
+                </td>
+              </tr>
+              <tr>
+                <td><label for="oaProduct">Product Code:</label></td>
+                <td><input type="text" id="oaProduct" size="12" placeholder="e.g. SAV-01" /></td>
+              </tr>
+            </table>
+            <p id="oaErr2" class="err" hidden></p>
+            <button type="button" id="oaBack2">Back</button>
+            <button type="button" id="oaNext2">Review</button>
+          </fieldset>
+        </div>
+
+        <div id="step3" class="step">
+          <div class="confirm-box" role="region" aria-label="Confirmation">
+            <h3>Confirm New Sub-Account</h3>
+            <table role="presentation">
+              <tr><td>Member ID</td><td id="cMemberId"></td></tr>
+              <tr><td>Member Name</td><td id="cMemberName"></td></tr>
+              <tr><td>Account Type</td><td id="cType"></td></tr>
+              <tr><td>Product Code</td><td id="cProduct"></td></tr>
+            </table>
+            <p><em>Submitting creates the account on the core. This action is irreversible.</em></p>
+            <button type="button" id="oaBack3">Back</button>
+            <button type="button" id="oaConfirm">Confirm &amp; Submit</button>
+          </div>
+        </div>
+
+        <div id="step4" class="step">
+          <div class="confirm-box" role="status" aria-label="Submission Result">
+            <h3>Sub-Account Opened</h3>
+            <p>Confirmation code: <strong id="confirmCode" aria-label="Confirmation Code"></strong></p>
+            <p>New account number: <strong id="newAcctNum" aria-label="New Account Number"></strong></p>
+            <p role="status">Status: COMPLETE</p>
+            <a href="open-account.html">Open another</a>
+          </div>
+        </div>
+      </td>
+    </tr>
+  </table>
+  <script src="bank-logic.js"></script>
+  <script>
+    var state = { member: null, type: '', product: '' };
+
+    function show(id) {
+      document.querySelectorAll('.step').forEach(function (s) { s.classList.remove('active'); });
+      document.getElementById(id).classList.add('active');
+    }
+
+    document.getElementById('oaNext1').addEventListener('click', function () {
+      var id = document.getElementById('oaMemberId').value.trim();
+      var err = document.getElementById('oaErr1');
+      if (!id) {
+        err.textContent = 'Validation Error: Member ID is required.';
+        err.hidden = false;
+        return;
+      }
+      if (!/^\d{4,8}$/.test(id)) {
+        err.textContent = 'Validation Error: Member ID must be 4–8 digits.';
+        err.hidden = false;
+        return;
+      }
+      var m = window.BankLogic.findMember(id);
+      if (!m) {
+        err.textContent = 'MEMBER NOT FOUND — cannot open sub-account (MEM_NOT_FOUND).';
+        err.hidden = false;
+        return;
+      }
+      err.hidden = true;
+      state.member = m;
+      document.getElementById('oaMemberName').textContent = m.name + ' (' + m.id + ')';
+      show('step2');
+    });
+
+    document.getElementById('oaNext2').addEventListener('click', function () {
+      var type = document.getElementById('oaType').value;
+      var product = document.getElementById('oaProduct').value.trim();
+      var err = document.getElementById('oaErr2');
+      if (!type) {
+        err.textContent = 'Validation Error: Account Type is required.';
+        err.hidden = false;
+        return;
+      }
+      if (!product) {
+        err.textContent = 'Validation Error: Product Code is required.';
+        err.hidden = false;
+        return;
+      }
+      err.hidden = true;
+      state.type = type;
+      state.product = product;
+      document.getElementById('cMemberId').textContent = state.member.id;
+      document.getElementById('cMemberName').textContent = state.member.name;
+      document.getElementById('cType').textContent = type;
+      document.getElementById('cProduct').textContent = product;
+      show('step3');
+    });
+
+    document.getElementById('oaBack2').addEventListener('click', function () { show('step1'); });
+    document.getElementById('oaBack3').addEventListener('click', function () { show('step2'); });
+
+    document.getElementById('oaConfirm').addEventListener('click', function () {
+      var result = window.BankLogic.openSubAccount(state.member.id, state.type, state.product);
+      document.getElementById('confirmCode').textContent = result.confirmationCode;
+      document.getElementById('newAcctNum').textContent = result.accountNumber;
+      show('step4');
+    });
+  </script>
+</body>
+</html>
