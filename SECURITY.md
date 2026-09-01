@@ -57,3 +57,10 @@ A step with `irreversible: false` targeting `#oaSubmit` still gates. Name heuris
 - fill/select/extract require locators
 - Irreversible: explicit flags + exact policy table
 - E2E nav-escape integration tests green
+
+## Security BLOCK patches (re-freeze)
+
+- CSS `[id=…]` / `[id="…"]` irreversible + label Confirm Payment fail-closed
+- Artifact filename sanitized (`artifactJsonFileName`) — no path traversal via `artifact.name`
+- `HITL_MODE` defaults to **manual** (fail-closed); `mock` only when explicit
+- Extract/output values redacted before logs and evidence payloads

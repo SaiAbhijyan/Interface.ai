@@ -3,3 +3,12 @@ dist/
 .env
 *.log
 .DS_Store
+playwright-report/
+test-results/
+traces/
+*.trace.zip
+.tmp/
+coverage/
+evidence/replay-*/
+!evidence/replay-success.json
+!evidence/replay-business-outcome.json

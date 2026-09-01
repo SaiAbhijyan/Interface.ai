@@ -13,7 +13,7 @@
       "type": "string",
       "description": "Member ID (4–8 digits)",
       "required": true,
-      "sensitive": false
+      "sensitive": true
     }
   ],
   "outputs": [
@@ -197,7 +197,7 @@
     "requiresConfirmationForIrreversible": true
   },
   "metadata": {
-    "discoveredAt": "2026-09-01T19:48:09.965Z",
+    "discoveredAt": "2026-09-01T23:54:04.967Z",
     "goal": "look up member and read savings balance",
     "model": "synthetic-fixture",
     "synthetic": true

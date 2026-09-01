@@ -42,8 +42,8 @@ export const ParamDefSchema = z.object({
   type: z.enum(["string", "number", "boolean"]),
   description: z.string(),
   required: z.boolean().default(true),
-  /** If true, values are redacted from logs/artifacts at rest */
-  sensitive: z.boolean().default(false),
+  /** Fail-closed: values redacted from logs/artifacts unless explicitly marked false */
+  sensitive: z.boolean().default(true),
 });
 
 export const OutputDefSchema = z.object({

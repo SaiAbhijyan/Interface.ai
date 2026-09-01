@@ -1,6 +1,7 @@
 /**
  * HITL on the SAME live SurfaceDriver session.
- * HITL_MODE=mock auto-resolves; HITL_MODE=manual FAIL-CLOSED until waitForOperator signals.
+ * Default / production is FAIL-CLOSED (manual): requires waitForOperator.
+ * Auto-resume only when HITL_MODE=mock is set explicitly.
  */
 
 import type { SurfaceDriver, HumanSessionHandle } from "../surface/types.js";
@@ -25,9 +26,14 @@ export type InterventionResult = {
 
 export type HitlMode = "mock" | "manual";
 
+/**
+ * Fail-closed: unset / unknown / "manual" => manual.
+ * Mock auto-resume only when HITL_MODE=mock explicitly.
+ */
 export function getHitlMode(): HitlMode {
-  const m = (process.env.HITL_MODE ?? "mock").toLowerCase();
-  return m === "manual" ? "manual" : "mock";
+  const raw = process.env.HITL_MODE;
+  if (raw != null && raw.trim().toLowerCase() === "mock") return "mock";
+  return "manual";
 }
 
 export class HitlBlockedError extends Error {
@@ -68,14 +74,14 @@ export async function escalateToHuman(opts: {
     operatorNotes = notesDefault + " [mock operator]";
     await handle.resume();
   } else {
-    // FAIL-CLOSED: manual mode requires an operator signal — never auto-resume
+    // FAIL-CLOSED: manual (default) requires an operator signal — never auto-resume
     if (!opts.waitForOperator) {
       opts.logger.error(
         "hitl",
-        "HITL_MODE=manual requires waitForOperator — refusing to auto-resume",
+        "HITL_MODE=manual (default) requires waitForOperator — refusing to auto-resume",
       );
       throw new HitlBlockedError(
-        "HITL_MODE=manual requires waitForOperator callback; refusing fail-open auto-resume",
+        "HITL_MODE=manual (default) requires waitForOperator callback; refusing fail-open auto-resume. Set HITL_MODE=mock explicitly for demo auto-resume.",
       );
     }
     operatorNotes = await opts.waitForOperator(handle, opts.request);

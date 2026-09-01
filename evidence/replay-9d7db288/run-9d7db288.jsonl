@@ -1,2 +1,0 @@
-{"ts":"2026-09-01T19:45:01.104Z","level":"info","runId":"9d7db288","phase":"replay","message":"Starting deterministic replay","data":{"capability":"open_member_sub_account","entryUrl":"http://127.0.0.1:4173","params":{"memberId":"10001","accountType":"Savings","productCode":"SAV-01"}}}
-{"ts":"2026-09-01T19:45:01.212Z","level":"error","runId":"9d7db288","phase":"replay","message":"Unhandled replay error","data":{"msg":"Blocked/error navigation (chrome-error): chrome-error://chromewebdata/"}}

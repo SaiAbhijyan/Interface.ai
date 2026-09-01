@@ -1,8 +1,8 @@
 /**
  * Security gate for all automation actions.
  * Irreversible: explicit step.irreversible OR IRREVERSIBLE_CONTROL_POLICY
- * (normalized name match) OR fail-closed confirm/submit word-boundary heuristic
- * for role_name / frame_role_name / text strategies, and for css #id tokens.
+ * OR fail-closed confirm/submit signals from id / label / role name / text /
+ * press value / hint text — not only a single locator-string regex.
  */
 
 import type { ActionType, Locator } from "../artifact/schema.js";
@@ -40,6 +40,27 @@ export function normalizeControlName(s: string): string {
   return s.trim().replace(/\s+/g, " ").toLowerCase();
 }
 
+/** Split camelCase / kebab / snake id tokens into words for \bconfirm\b checks. */
+export function idTokenWords(id: string): string {
+  return id
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .replace(/[-_]+/g, " ")
+    .toLowerCase();
+}
+
+/**
+ * Extract element id candidates from CSS locators:
+ *   #oaConfirm, [id=oaConfirm], [id="oaConfirm"], [id='oaConfirm']
+ */
+export function extractCssIds(cssValue: string): string[] {
+  const ids: string[] = [];
+  const hash = cssValue.matchAll(/#([A-Za-z][\w-]*)/g);
+  for (const m of hash) ids.push(m[1]!);
+  const attr = cssValue.matchAll(/\[\s*id\s*=\s*(?:["']?)([A-Za-z][\w-]*)(?:["']?)\s*\]/gi);
+  for (const m of attr) ids.push(m[1]!);
+  return [...new Set(ids)];
+}
+
 export type GatedAction = {
   action: ActionType;
   url?: string;
@@ -47,50 +68,70 @@ export type GatedAction = {
   value?: string;
   key?: string;
   irreversible?: boolean;
+  /** Recoverable-hint / press-associated / description text to scan for confirm|submit */
+  hint?: string;
 };
+
+function looksIrreversibleName(normalized: string): boolean {
+  return /\b(confirm|submit)\b/.test(normalized);
+}
+
+function idIsIrreversible(id: string): boolean {
+  if (IRREVERSIBLE_CONTROL_POLICY.cssIds.includes(id)) return true;
+  return looksIrreversibleName(idTokenWords(id));
+}
 
 export function resolveIrreversible(gated: GatedAction): boolean {
   if (gated.irreversible === true) return true;
   const loc = gated.locator;
-  if (!loc) return false;
 
-  if (loc.strategy === "css") {
-    const idMatch = loc.value.match(/#([A-Za-z][\w-]*)/);
-    if (idMatch) {
-      const id = idMatch[1]!;
-      if (IRREVERSIBLE_CONTROL_POLICY.cssIds.includes(id)) return true;
-      // Fail-closed: camelCase/kebab/snake #id tokens that contain confirm|submit
-      // as whole words (e.g. #confirmPayment, #btn-submit) — not only policy cssIds.
-      const idWords = id
-        .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
-        .replace(/[-_]+/g, " ")
-        .toLowerCase();
-      if (/\b(confirm|submit)\b/.test(idWords)) return true;
+  // CSS id paths: #oaConfirm and [id=oaConfirm] (attribute form often missed by #only regex)
+  if (loc?.strategy === "css") {
+    for (const id of extractCssIds(loc.value)) {
+      if (idIsIrreversible(id)) return true;
     }
   }
 
-  const normalizedValue = normalizeControlName(loc.value);
-
-  for (const rn of IRREVERSIBLE_CONTROL_POLICY.roleNames) {
-    const policyName = normalizeControlName(rn.name);
-    if (
-      (loc.strategy === "role_name" || loc.strategy === "frame_role_name") &&
-      (loc.role ?? "button") === rn.role &&
-      normalizedValue === policyName
-    ) {
-      return true;
-    }
-    if (loc.strategy === "text" && normalizedValue === policyName) return true;
+  const textCandidates: string[] = [];
+  if (loc?.value) textCandidates.push(loc.value);
+  if (gated.value) textCandidates.push(gated.value);
+  if (gated.hint) textCandidates.push(gated.hint);
+  // press may carry associated control text in value/hint without a locator
+  if (gated.action === "press" && gated.key) {
+    // key alone is not irreversible; value/hint already collected
   }
 
-  // Fail-closed: unknown confirm/submit-looking controls (word-boundary only).
-  // "Resubmit Form" must NOT match \bsubmit\b; "Confirm Me" / "Confirm Payment" must.
-  if (
-    loc.strategy === "role_name" ||
-    loc.strategy === "frame_role_name" ||
-    loc.strategy === "text"
-  ) {
-    if (/\b(confirm|submit)\b/.test(normalizedValue)) {
+  for (const raw of textCandidates) {
+    const normalized = normalizeControlName(raw);
+
+    for (const rn of IRREVERSIBLE_CONTROL_POLICY.roleNames) {
+      const policyName = normalizeControlName(rn.name);
+      if (normalized === policyName) {
+        if (!loc) return true; // hint/press/value path
+        if (
+          (loc.strategy === "role_name" || loc.strategy === "frame_role_name") &&
+          (loc.role ?? "button") === rn.role
+        ) {
+          return true;
+        }
+        if (loc.strategy === "text" || loc.strategy === "label") return true;
+        // css already handled via ids; still treat exact policy name on any strategy
+        if (loc.strategy !== "css") return true;
+      }
+    }
+
+    // Fail-closed word-boundary confirm|submit on label / role / text / hint / press value
+    const strategy = loc?.strategy;
+    const checkHeuristic =
+      !loc ||
+      strategy === "role_name" ||
+      strategy === "frame_role_name" ||
+      strategy === "text" ||
+      strategy === "label" ||
+      gated.action === "press" ||
+      gated.hint != null;
+
+    if (checkHeuristic && looksIrreversibleName(normalized)) {
       return true;
     }
   }
@@ -174,4 +215,15 @@ export function sanitizeToolArgs(raw: unknown): Record<string, unknown> {
     }
   }
   return out;
+}
+
+/**
+ * Sanitize capability/artifact file basenames: strip path traversal and
+ * allowlist [A-Za-z0-9._-]. Empty/unsafe names fall back to "artifact".
+ */
+export function sanitizeArtifactFilename(name: string): string {
+  const base = name.replace(/\\/g, "/").split("/").pop() ?? "";
+  const cleaned = base.replace(/[^A-Za-z0-9._-]/g, "_").replace(/^\.+/, "");
+  const trimmed = cleaned.slice(0, 120);
+  return trimmed.length > 0 ? trimmed : "artifact";
 }

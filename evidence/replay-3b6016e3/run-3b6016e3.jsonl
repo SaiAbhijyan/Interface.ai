@@ -1,1 +1,0 @@
-{"ts":"2026-09-01T19:47:52.139Z","level":"error","runId":"3b6016e3","phase":"replay","message":"Unhandled replay error","data":{"msg":"Path \"/not-allowed.html\" is outside allowed routes (/, /index.html, /lookup.html, /open-account.html, /results.html, /bank-logic.js)"}}

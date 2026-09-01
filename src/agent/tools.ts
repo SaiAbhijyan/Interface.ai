@@ -145,6 +145,11 @@ export const DISCOVERY_TOOLS = [
                 name: { type: "string" },
                 type: { type: "string", enum: ["string", "number", "boolean"] },
                 description: { type: "string" },
+                sensitive: {
+                  type: "boolean",
+                  description:
+                    "If true, redact at rest in logs. Default true. Always true for memberId/account/customer/bank identity fields.",
+                },
               },
               required: ["name", "type", "description"],
               additionalProperties: false,

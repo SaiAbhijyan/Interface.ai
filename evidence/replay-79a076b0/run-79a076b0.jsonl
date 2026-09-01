@@ -1,7 +1,0 @@
-{"ts":"2026-09-01T19:46:03.323Z","level":"info","runId":"79a076b0","phase":"replay","message":"Starting deterministic replay","data":{"capability":"lookup_member_savings_balance","entryUrl":"http://127.0.0.1:4173","params":{"memberId":"10001"}}}
-{"ts":"2026-09-01T19:46:03.471Z","level":"info","runId":"79a076b0","phase":"replay","message":"Step s1: navigate — Open Member Lookup"}
-{"ts":"2026-09-01T19:46:03.649Z","level":"info","runId":"79a076b0","phase":"replay","message":"Step s2: fill — Enter Member ID"}
-{"ts":"2026-09-01T19:46:03.847Z","level":"info","runId":"79a076b0","phase":"replay","message":"Step s3: click — Click Search"}
-{"ts":"2026-09-01T19:46:04.135Z","level":"info","runId":"79a076b0","phase":"replay","message":"Step s4: extract — Read savings balance from results iframe"}
-{"ts":"2026-09-01T19:46:04.153Z","level":"info","runId":"79a076b0","phase":"replay","message":"Extracted savingsBalance","data":{"preview":"$4,250.33"}}
-{"ts":"2026-09-01T19:46:04.343Z","level":"info","runId":"79a076b0","phase":"replay","message":"Replay succeeded","data":{"outputs":{"savingsBalance":"$4,250.33"}}}

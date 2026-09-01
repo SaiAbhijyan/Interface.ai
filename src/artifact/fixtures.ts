@@ -18,7 +18,7 @@ export function buildLookupSavingsArtifact(entryUrl: string): CapabilityArtifact
         type: "string",
         description: "Member ID (4–8 digits)",
         required: true,
-        sensitive: false,
+        sensitive: true,
       },
     ],
     outputs: [
@@ -181,7 +181,7 @@ export function buildOpenSubAccountArtifact(entryUrl: string): CapabilityArtifac
         type: "string",
         description: "Member ID",
         required: true,
-        sensitive: false,
+        sensitive: true,
       },
       {
         name: "accountType",
@@ -195,7 +195,7 @@ export function buildOpenSubAccountArtifact(entryUrl: string): CapabilityArtifac
         type: "string",
         description: "Product code e.g. SAV-01",
         required: true,
-        sensitive: false,
+        sensitive: true,
       },
     ],
     outputs: [

@@ -251,3 +251,35 @@ describe("css #id irreversible fail-closed", () => {
     }
   });
 });
+
+describe("css [id=...] and label irreversible (Security BLOCK)", () => {
+  it("gates [id=oaConfirm] and [id=\"oaConfirm\"]", () => {
+    for (const css of ['[id=oaConfirm]', '[id="oaConfirm"]', "[id='oaConfirm']", '[id=oaSubmit]']) {
+      expect(
+        resolveIrreversible({
+          action: "click",
+          locator: { strategy: "css", value: css, alternatives: [] },
+        }),
+      ).toBe(true);
+    }
+  });
+
+  it("gates label Confirm Payment without confirmIrreversible", () => {
+    expect(
+      resolveIrreversible({
+        action: "click",
+        locator: { strategy: "label", value: "Confirm Payment", alternatives: [] },
+      }),
+    ).toBe(true);
+    expect(() =>
+      gateAction(
+        {
+          action: "click",
+          locator: { strategy: "label", value: "Confirm Payment", alternatives: [] },
+        },
+        DEFAULT_ALLOWLIST,
+        { confirmIrreversible: false },
+      ),
+    ).toThrow(PolicyViolation);
+  });
+});

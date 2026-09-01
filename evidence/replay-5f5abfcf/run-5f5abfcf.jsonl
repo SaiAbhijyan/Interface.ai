@@ -1,2 +1,0 @@
-{"ts":"2026-09-01T19:45:17.790Z","level":"info","runId":"5f5abfcf","phase":"replay","message":"Starting deterministic replay","data":{"capability":"lookup_member_savings_balance","entryUrl":"http://127.0.0.1:4173","params":{"memberId":"99999"}}}
-{"ts":"2026-09-01T19:45:17.901Z","level":"error","runId":"5f5abfcf","phase":"replay","message":"Unhandled replay error","data":{"msg":"Blocked/error navigation (chrome-error): chrome-error://chromewebdata/"}}

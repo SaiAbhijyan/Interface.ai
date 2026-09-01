@@ -1,3 +1,0 @@
-{"ts":"2026-09-01T19:47:09.353Z","level":"info","runId":"c16fb06e","phase":"replay","message":"Starting deterministic replay","data":{"capability":"lookup_member_savings_balance","entryUrl":"http://127.0.0.1:4173","params":{"memberId":"10001"}}}
-{"ts":"2026-09-01T19:47:09.453Z","level":"info","runId":"c16fb06e","phase":"replay","message":"Step s1: navigate — Escape attempt"}
-{"ts":"2026-09-01T19:47:09.515Z","level":"error","runId":"c16fb06e","phase":"replay","message":"Failure at step s1","data":{"expected":"policy allow","observed":"Origin \"http://127.0.0.1:3000\" is not on the allowlist (http://127.0.0.1:4173, http://localhost:4173)","taxonomy":"policy_violation","status":"hard_failure"}}

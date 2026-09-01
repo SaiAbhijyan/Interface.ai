@@ -1,9 +1,0 @@
-{"ts":"2026-09-01T19:47:12.503Z","level":"info","runId":"7c930811","phase":"replay","message":"Starting deterministic replay","data":{"capability":"open_member_sub_account","entryUrl":"http://127.0.0.1:4173","params":{"memberId":"10001","accountType":"Savings","productCode":"SAV-01"}}}
-{"ts":"2026-09-01T19:47:12.615Z","level":"info","runId":"7c930811","phase":"replay","message":"Step s1: navigate — Open sub-account wizard"}
-{"ts":"2026-09-01T19:47:12.794Z","level":"info","runId":"7c930811","phase":"replay","message":"Step s2: fill — Enter Member ID"}
-{"ts":"2026-09-01T19:47:12.989Z","level":"info","runId":"7c930811","phase":"replay","message":"Step s3: click — Continue from step 1"}
-{"ts":"2026-09-01T19:47:13.202Z","level":"info","runId":"7c930811","phase":"replay","message":"Step s4: select — Choose account type"}
-{"ts":"2026-09-01T19:47:13.358Z","level":"info","runId":"7c930811","phase":"replay","message":"Step s5: fill — Enter product code"}
-{"ts":"2026-09-01T19:47:13.516Z","level":"info","runId":"7c930811","phase":"replay","message":"Step s6: click — Review"}
-{"ts":"2026-09-01T19:47:13.700Z","level":"info","runId":"7c930811","phase":"replay","message":"Step s7: click — Confirm & Submit (irreversible)"}
-{"ts":"2026-09-01T19:47:13.735Z","level":"error","runId":"7c930811","phase":"replay","message":"Failure at step s7","data":{"expected":"policy allow","observed":"Irreversible action blocked: pass --confirm-irreversible (or confirmIrreversible: true) to proceed","taxonomy":"irreversible_blocked","status":"hard_failure"}}

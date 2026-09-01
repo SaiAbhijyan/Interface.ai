@@ -17,7 +17,9 @@ import {
   PolicyViolation,
 } from "../guardrails/allowlist.js";
 import { gateAction, sanitizeToolArgs, resolveIrreversible } from "../guardrails/action-gate.js";
-import { assertNoSecretsInArtifactJson } from "../guardrails/redaction.js";
+import { assertNoSecretsInArtifactJson, redactText, redactObject, redactObserveSnapshot } from "../guardrails/redaction.js";
+import { artifactJsonFileName } from "../guardrails/safe-path.js";
+
 import { RunLogger } from "../observability/logger.js";
 import { escalateToHuman } from "../hitl/handoff.js";
 import { DISCOVERY_TOOLS } from "./tools.js";
@@ -28,6 +30,23 @@ import {
   validateDiscoveryToolArgs,
 } from "./loop-policy.js";
 import { buildLookupSavingsArtifact, buildOpenSubAccountArtifact } from "../artifact/fixtures.js";
+
+
+const SENSITIVE_PARAM_NAME = /member|account|customer|ssn|pan|email|phone|balance|routing|iban|name|dob|address/i;
+
+function normalizeParamDefs(
+  params: Array<{ name: string; type: string; description: string; sensitive?: boolean; required?: boolean }>,
+): CapabilityArtifact["parameters"] {
+  return params.map((p) => ({
+    name: p.name,
+    type: p.type as "string" | "number" | "boolean",
+    description: p.description,
+    required: p.required ?? true,
+    // Fail-closed: default true; force true for bank/member-like names
+    sensitive: SENSITIVE_PARAM_NAME.test(p.name) ? true : p.sensitive !== false,
+  }));
+}
+
 
 export type DiscoverOptions = {
   goal: string;
@@ -213,7 +232,7 @@ export async function discoverCapability(opts: DiscoverOptions): Promise<Discove
   const system = `You are a computer-use agent automating a legacy bank back-office UI.
 Goal: ${opts.goal}
 Entry URL: ${opts.entryUrl}
-Runtime params available: ${JSON.stringify(params)}
+Runtime params available (redacted): ${JSON.stringify(redactObject(params))}
 
 Rules:
 - Prefer accessibility locators: role+name, label, text. Never invent test ids (there are none).
@@ -227,7 +246,7 @@ Rules:
 
   const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [
     { role: "system", content: system },
-    { role: "user", content: `Accomplish the goal. Params: ${JSON.stringify(params)}` },
+    { role: "user", content: `Accomplish the goal. Params (redacted): ${JSON.stringify(redactObject(params))}` },
   ];
 
   let donePayload: Record<string, unknown> | null = null;
@@ -292,7 +311,7 @@ Rules:
         args = {};
       }
 
-      logger.info("discover", `tool:${name}`, { args });
+      logger.info("discover", `tool:${name}`, { args: redactObject(args) as Record<string, unknown> });
       let toolResult = "";
 
       try {
@@ -301,7 +320,7 @@ Rules:
         switch (name) {
           case "observe": {
             const snap = await opts.driver.observe();
-            toolResult = JSON.stringify(snap).slice(0, 12000);
+            toolResult = JSON.stringify(redactObserveSnapshot(snap)).slice(0, 12000);
             break;
           }
           case "click": {
@@ -380,7 +399,7 @@ Rules:
               allowlist,
               { confirmIrreversible: opts.confirmIrreversible },
             );
-            const text = await opts.driver.readText(toDriver(loc));
+            const text = redactText(await opts.driver.readText(toDriver(loc)));
             const outputName = String(args.outputName);
             extracted[outputName] = text;
             recorded.push({
@@ -405,7 +424,7 @@ Rules:
               request: {
                 reason: String(args.reason ?? "stuck"),
                 goal: opts.goal,
-                observedSummary: (await opts.driver.observe()).visibleText.slice(0, 500),
+                observedSummary: redactText((await opts.driver.observe()).visibleText.slice(0, 500)),
                 screenshotPath: fs.existsSync(shot) ? shot : undefined,
                 createdAt: new Date().toISOString(),
               },
@@ -438,7 +457,7 @@ Rules:
       messages.push({
         role: "tool",
         tool_call_id: call.id,
-        content: toolResult.slice(0, 10000),
+        content: redactText(toolResult).slice(0, 10000),
       });
     }
 
@@ -494,7 +513,7 @@ Rules:
       entryUrl: opts.entryUrl,
       appId: "legacy-bank-mock",
     },
-    parameters: (donePayload.parameters as CapabilityArtifact["parameters"]) ?? [],
+    parameters: normalizeParamDefs((donePayload.parameters as Array<{ name: string; type: string; description: string; sensitive?: boolean; required?: boolean }>) ?? []),
     outputs: (donePayload.outputs as CapabilityArtifact["outputs"]) ?? [],
     steps,
     successCheckpoint: {
@@ -547,7 +566,7 @@ Rules:
   // Also copy to artifacts/
   const artDir = path.resolve(path.join(evidenceDir, "..", "..", "artifacts"));
   fs.mkdirSync(artDir, { recursive: true });
-  fs.writeFileSync(path.join(artDir, `${artifact.name}.json`), json);
+  fs.writeFileSync(path.join(artDir, artifactJsonFileName(artifact.name)), json);
 
   logger.info("discover", "Discovery complete — artifact saved", { outPath, name: artifact.name });
   await opts.driver.close();
@@ -610,7 +629,7 @@ async function syntheticDiscover(opts: DiscoverOptions): Promise<DiscoverResult>
 
   const artDir = path.resolve(path.join(evidenceDir, "..", "..", "artifacts"));
   fs.mkdirSync(artDir, { recursive: true });
-  fs.writeFileSync(path.join(artDir, `${artifact.name}.json`), json);
+  fs.writeFileSync(path.join(artDir, artifactJsonFileName(artifact.name)), json);
 
   await logger.close();
   return { artifact, evidenceDir, logPath: logger.logPath, synthetic: true };

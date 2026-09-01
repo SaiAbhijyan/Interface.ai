@@ -98,4 +98,15 @@ describe("HITL fail-closed", () => {
     expect(result.mode).toBe("mock");
     expect(result.operatorNotes).toContain("[mock operator]");
   });
+
+  it("defaults to manual fail-closed when HITL_MODE unset", async () => {
+    delete process.env.HITL_MODE;
+    await expect(
+      escalateToHuman({
+        driver: stubDriver(),
+        logger,
+        request,
+      }),
+    ).rejects.toBeInstanceOf(HitlBlockedError);
+  });
 });

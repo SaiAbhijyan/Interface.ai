@@ -13,7 +13,7 @@
       "type": "string",
       "description": "Member ID",
       "required": true,
-      "sensitive": false
+      "sensitive": true
     },
     {
       "name": "accountType",
@@ -27,7 +27,7 @@
       "type": "string",
       "description": "Product code e.g. SAV-01",
       "required": true,
-      "sensitive": false
+      "sensitive": true
     }
   ],
   "outputs": [

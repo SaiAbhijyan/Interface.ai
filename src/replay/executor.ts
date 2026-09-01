@@ -15,6 +15,7 @@ import {
   PolicyViolation,
 } from "../guardrails/allowlist.js";
 import { gateAction, resolveIrreversible } from "../guardrails/action-gate.js";
+import { redactText, redactObject } from "../guardrails/redaction.js";
 import { RunLogger } from "../observability/logger.js";
 import { escalateToHuman } from "../hitl/handoff.js";
 
@@ -146,6 +147,7 @@ export async function replayCapability(opts: ReplayOptions): Promise<ReplayResul
             value: step.value,
             key: step.key,
             irreversible: step.irreversible,
+            hint: step.description,
           },
           allowlist,
           { confirmIrreversible: opts.confirmIrreversible },
@@ -160,6 +162,7 @@ export async function replayCapability(opts: ReplayOptions): Promise<ReplayResul
             value: step.value,
             key: step.key,
             irreversible: step.irreversible,
+            hint: step.description,
           });
         const taxonomy =
           e instanceof PolicyViolation && irrev
@@ -168,7 +171,7 @@ export async function replayCapability(opts: ReplayOptions): Promise<ReplayResul
         return await fail(step.id, "policy allow", msg, taxonomy);
       }
 
-      // Recoverable: dismiss known interstitials
+      // Recoverable: dismiss known interstitials (still gate confirm/submit hints)
       for (const hint of step.recoverableHints ?? []) {
         const visible = await opts.driver.isVisible(
           { strategy: "text", value: hint },
@@ -177,9 +180,16 @@ export async function replayCapability(opts: ReplayOptions): Promise<ReplayResul
         if (visible) {
           logger.warn("replay", "Recoverable interstitial detected — dismissing", { hint });
           try {
+            const hintLoc = { strategy: "text" as const, value: hint, alternatives: [] as [] };
+            gateAction(
+              { action: "click", locator: hintLoc, hint },
+              allowlist,
+              { confirmIrreversible: opts.confirmIrreversible },
+            );
             await opts.driver.click({ strategy: "text", value: hint });
-          } catch {
-            /* best-effort */
+          } catch (he) {
+            if (he instanceof PolicyViolation) throw he;
+            /* best-effort dismiss otherwise */
           }
         }
       }
@@ -339,13 +349,13 @@ export async function replayCapability(opts: ReplayOptions): Promise<ReplayResul
           const m = text.match(new RegExp(out.extractPattern, "i"));
           if (m) text = m[1] ?? m[0];
         }
-        outputs[out.name] = text;
+        outputs[out.name] = redactText(text);
       } catch {
         logger.warn("replay", `Could not extract output ${out.name}`);
       }
     }
 
-    logger.info("replay", "Replay succeeded", { outputs });
+    logger.info("replay", "Replay succeeded", { outputs: redactObject(outputs) as Record<string, unknown> });
     await logger.close();
     await opts.driver.close();
 
@@ -438,8 +448,9 @@ async function executeStep(
     case "extract": {
       if (!step.locator || !step.outputName) throw new Error("extract requires locator+outputName");
       const text = await driver.readText(toDriverLocator(step.locator));
-      outputs[step.outputName] = text;
-      logger.info("replay", `Extracted ${step.outputName}`, { preview: text.slice(0, 80) });
+      const safe = redactText(text);
+      outputs[step.outputName] = safe;
+      logger.info("replay", `Extracted ${step.outputName}`, { preview: safe.slice(0, 80) });
       break;
     }
     case "assert": {

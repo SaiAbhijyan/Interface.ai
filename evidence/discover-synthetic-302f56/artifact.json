@@ -11,9 +11,9 @@
     {
       "name": "memberId",
       "type": "string",
-      "description": "Member ID (4–8 digits)",
+      "description": "Member ID (4\u20138 digits)",
       "required": true,
-      "sensitive": false
+      "sensitive": true
     }
   ],
   "outputs": [
