@@ -138,7 +138,8 @@ export type GatedAction = {
   hint?: string;
 };
 
-export function resolveIrreversible(gated: GatedAction): boolean {
+/** Core irreversible check for one locator (no alternatives recursion). */
+function resolveIrreversibleOne(gated: GatedAction): boolean {
   if (gated.irreversible === true) return true;
   const loc = gated.locator;
 
@@ -209,6 +210,29 @@ export function resolveIrreversible(gated: GatedAction): boolean {
   return false;
 }
 
+/**
+ * Fail-closed: primary OR any locator.alternative that looks irreversible
+ * requires confirmIrreversible (PoC: Benign Missing + alt #oaSubmit).
+ */
+export function resolveIrreversible(gated: GatedAction): boolean {
+  const loc = gated.locator;
+  const primary = loc ? { ...loc, alternatives: [] as Locator["alternatives"] } : undefined;
+  if (resolveIrreversibleOne({ ...gated, locator: primary })) return true;
+
+  for (const alt of loc?.alternatives ?? []) {
+    // Merge like resolveWithFallbacks so partial alts inherit strategy/role/frame
+    const altLoc: Locator = {
+      ...(primary as Locator),
+      ...alt,
+      alternatives: [],
+    };
+    if (resolveIrreversibleOne({ ...gated, locator: altLoc, irreversible: undefined })) {
+      return true;
+    }
+  }
+  return false;
+}
+
 export function gateAction(
   gated: GatedAction,
   cfg: AllowlistConfig,
@@ -253,8 +277,12 @@ export function gateAction(
     }
   }
 
-  if (gated.locator?.strategy === "css") {
-    const v = gated.locator.value;
+  const cssValues: string[] = [];
+  if (gated.locator?.strategy === "css") cssValues.push(gated.locator.value);
+  for (const alt of gated.locator?.alternatives ?? []) {
+    if (alt.strategy === "css") cssValues.push(alt.value);
+  }
+  for (const v of cssValues) {
     if (/expression\s*\(|javascript:|@import|data:/i.test(v)) {
       throw new PolicyViolation("Blocked dangerous CSS locator");
     }

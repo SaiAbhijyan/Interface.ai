@@ -15,6 +15,7 @@ import {
   PolicyViolation,
 } from "../guardrails/allowlist.js";
 import { gateAction, resolveIrreversible } from "../guardrails/action-gate.js";
+import { safeEvidenceFileToken } from "../guardrails/safe-path.js";
 import { redactText, redactObject } from "../guardrails/redaction.js";
 import { RunLogger } from "../observability/logger.js";
 import { escalateToHuman } from "../hitl/handoff.js";
@@ -108,7 +109,7 @@ export async function replayCapability(opts: ReplayOptions): Promise<ReplayResul
     taxonomy: NonNullable<ReplayResult["error"]>["taxonomy"],
     status: ReplayResult["status"] = "hard_failure",
   ): Promise<ReplayResult> => {
-    const shot = path.join(evidenceDir, `failure-${stepId}.png`);
+    const shot = path.join(evidenceDir, `failure-${safeEvidenceFileToken(stepId)}.png`);
     try {
       await opts.driver.screenshot(shot);
     } catch {
@@ -204,8 +205,27 @@ export async function replayCapability(opts: ReplayOptions): Promise<ReplayResul
       }
 
       try {
-        await executeStep(opts.driver, step, opts.params, outputs, logger);
+        await executeStep(opts.driver, step, opts.params, outputs, logger, opts.confirmIrreversible);
       } catch (e) {
+        // Re-gate of winning locator (or other mid-step gates) must not be mislabeled
+        if (e instanceof PolicyViolation) {
+          const irrev = resolveIrreversible({
+            action: step.action,
+            url: step.url,
+            locator: step.locator,
+            value: step.value,
+            key: step.key,
+            irreversible: step.irreversible,
+            hint: step.description,
+          });
+          return await fail(
+            step.id,
+            "policy allow",
+            e.message,
+            irrev ? "irreversible_blocked" : "policy_violation",
+          );
+        }
+
         const observed = e instanceof Error ? e.message : String(e);
 
         // After action, check business outcomes on page text if checkpoint defines them
@@ -238,7 +258,7 @@ export async function replayCapability(opts: ReplayOptions): Promise<ReplayResul
           });
           // After HITL, retry once
           try {
-            await executeStep(opts.driver, step, opts.params, outputs, logger);
+            await executeStep(opts.driver, step, opts.params, outputs, logger, opts.confirmIrreversible);
             continue;
           } catch (e2) {
             return await fail(
@@ -408,12 +428,39 @@ export async function replayCapability(opts: ReplayOptions): Promise<ReplayResul
   }
 }
 
+
+/** Defense-in-depth: re-gate the winning fallback locator before acting. */
+function gateWinningLocator(
+  action: Step["action"],
+  won: Locator,
+  step: Step,
+  params: Record<string, string | number | boolean>,
+  confirmIrreversible?: boolean,
+): void {
+  const paramValue = step.paramRef != null ? params[step.paramRef] : undefined;
+  const value =
+    paramValue != null ? String(paramValue) : (step.value ?? undefined);
+  gateAction(
+    {
+      action,
+      locator: { ...won, alternatives: [] },
+      value: action === "fill" || action === "select" ? value : step.value,
+      key: step.key,
+      irreversible: step.irreversible,
+      hint: step.description,
+    },
+    loadAllowlistFromEnv(),
+    { confirmIrreversible },
+  );
+}
+
 async function executeStep(
   driver: SurfaceDriver,
   step: Step,
   params: Record<string, string | number | boolean>,
   outputs: Record<string, string | number | boolean>,
   logger: RunLogger,
+  confirmIrreversible?: boolean,
 ): Promise<void> {
   const paramValue = step.paramRef != null ? params[step.paramRef] : undefined;
 
@@ -429,6 +476,7 @@ async function executeStep(
       if (!step.locator) throw new Error("click requires locator");
       const won = await resolveWithFallbacks(driver, step.locator, "wait");
       if (!won) throw new Error(`click target not found: ${step.locator.value}`);
+      gateWinningLocator("click", won, step, params, confirmIrreversible);
       await driver.click(toDriverLocator(won));
       break;
     }
@@ -437,6 +485,7 @@ async function executeStep(
       const value = paramValue != null ? String(paramValue) : (step.value ?? "");
       const won = await resolveWithFallbacks(driver, step.locator, "wait");
       if (!won) throw new Error(`fill target not found: ${step.locator.value}`);
+      gateWinningLocator("fill", won, step, params, confirmIrreversible);
       await driver.fill(toDriverLocator(won), value);
       break;
     }
@@ -445,10 +494,16 @@ async function executeStep(
       const value = paramValue != null ? String(paramValue) : (step.value ?? "");
       const won = await resolveWithFallbacks(driver, step.locator, "wait");
       if (!won) throw new Error(`select target not found: ${step.locator.value}`);
+      gateWinningLocator("select", won, step, params, confirmIrreversible);
       await driver.select(toDriverLocator(won), value);
       break;
     }
     case "press": {
+      gateAction(
+        { action: "press", key: step.key ?? "Enter", irreversible: step.irreversible, hint: step.description },
+        loadAllowlistFromEnv(),
+        { confirmIrreversible },
+      );
       await driver.press(step.key ?? "Enter");
       break;
     }
@@ -456,12 +511,14 @@ async function executeStep(
       if (!step.locator) throw new Error("wait_for requires locator");
       const won = await resolveWithFallbacks(driver, step.locator, "wait");
       if (!won) throw new Error(`wait_for timed out: ${step.locator.value}`);
+      gateWinningLocator("wait_for", won, step, params, confirmIrreversible);
       break;
     }
     case "extract": {
       if (!step.locator || !step.outputName) throw new Error("extract requires locator+outputName");
       const won = await resolveWithFallbacks(driver, step.locator, "wait");
       if (!won) throw new Error(`extract target not found: ${step.locator.value}`);
+      gateWinningLocator("extract", won, step, params, confirmIrreversible);
       const text = await driver.readText(toDriverLocator(won));
       const safe = redactText(text);
       outputs[step.outputName] = safe;
@@ -472,12 +529,14 @@ async function executeStep(
       if (!step.locator) throw new Error("assert requires locator");
       const won = await resolveWithFallbacks(driver, step.locator, "wait");
       if (!won) throw new Error(`assert failed: ${step.description}`);
+      gateWinningLocator("assert", won, step, params, confirmIrreversible);
       break;
     }
     case "dismiss_if_present": {
       if (!step.locator) return;
       const won = await resolveWithFallbacks(driver, step.locator, "visible");
       if (won) {
+        gateWinningLocator("click", won, step, params, confirmIrreversible);
         await driver.click(toDriverLocator(won));
       }
       break;
