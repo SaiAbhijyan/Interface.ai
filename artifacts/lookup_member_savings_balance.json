@@ -197,7 +197,7 @@
     "requiresConfirmationForIrreversible": true
   },
   "metadata": {
-    "discoveredAt": "2026-09-01T23:54:04.967Z",
+    "discoveredAt": "2026-09-07T14:57:12.566Z",
     "goal": "look up member and read savings balance",
     "model": "synthetic-fixture",
     "synthetic": true

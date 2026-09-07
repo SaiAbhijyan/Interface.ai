@@ -1,0 +1,18 @@
+{
+  "capturedAt": "2026-09-07T14:55:54.752Z",
+  "base": "http://127.0.0.1:4173",
+  "suiteNote": "vitest 108/108 previously green on this freeze",
+  "files": [
+    "01-lookup-form.png",
+    "02-lookup-filled.png",
+    "03-lookup-success.png",
+    "03-lookup-success.txt",
+    "04-mem-not-found.png",
+    "04-mem-not-found.txt",
+    "05-open-account-start.png",
+    "06-open-account-step.png",
+    "demo-lookup-success.webm",
+    "demo-mem-not-found.webm",
+    "demo-open-account.webm"
+  ]
+}

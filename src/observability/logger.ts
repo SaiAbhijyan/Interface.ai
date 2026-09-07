@@ -25,13 +25,15 @@ export class RunLogger {
     this.stream = fs.createWriteStream(this.logPath, { flags: "a" });
   }
 
-  private write(event: LogEvent): void {
+  private write(event: LogEvent, opts?: { console?: boolean }): void {
     const safe: LogEvent = {
       ...event,
       message: redactText(event.message),
       data: event.data ? (redactObject(event.data) as Record<string, unknown>) : undefined,
     };
     this.stream.write(JSON.stringify(safe) + "\n");
+    // Trim console spam: debug stays JSONL-only
+    if (opts?.console === false || safe.level === "debug") return;
     const line = `[${safe.level}] ${safe.phase} ${safe.message}`;
     if (safe.level === "error") console.error(line);
     else console.log(line);

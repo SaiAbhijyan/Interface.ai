@@ -10,5 +10,7 @@ traces/
 .tmp/
 coverage/
 evidence/replay-*/
+evidence/discover-*/
 !evidence/replay-success.json
 !evidence/replay-business-outcome.json
+!evidence/README.md

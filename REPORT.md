@@ -26,7 +26,7 @@ When stuck (locator miss, consecutive tool errors, irreversible risk, hard_failu
 
 ## Safety
 
-Origin allowlist is scheme+host+port (blocks localhost SSRF to other ports). assertUrlAllowed on open/navigate/observe/post-click. page.route + framenavigated interceptor; freezeAllowlist against TOCTOU; data:/blob:/javascript blocked. Irreversible via step flag + IRREVERSIBLE_CONTROL_POLICY ids/roleNames — not confirm-substring heuristics. fill/select require locators. Redaction before LLM observe and JSONL logs. results.html uses textContent/createElement only. See SECURITY.md.
+Origin allowlist is scheme+host+port (blocks localhost SSRF to other ports). assertUrlAllowed on open/navigate/observe/post-click. page.route + framenavigated interceptor; freezeAllowlist against TOCTOU; data:/blob:/javascript blocked. Irreversible detection is multi-signal: explicit `step.irreversible`, `IRREVERSIBLE_CONTROL_POLICY` (css ids / `[id=…]` / roleNames), **and** fail-closed `looksIrreversibleName` whole-word `\b(confirm|submit)\b` on normalized label/role/text/hint/id-token words — honest about those heuristics (not a claim of "no confirm-substring" checks). fill/select require locators. Redaction before LLM observe and JSONL logs. results.html uses textContent/createElement only. See SECURITY.md.
 
 
 ## Evaluation metrics

@@ -2,7 +2,8 @@
  * Security gate for all automation actions.
  * Irreversible: explicit step.irreversible OR IRREVERSIBLE_CONTROL_POLICY
  * OR fail-closed confirm/submit signals from id / label / role name / text /
- * press value / hint text — not only a single locator-string regex.
+ * placeholder / name / aria-label / title / press value / hint text /
+ * CSS id (including hex-escaped and [id*=] forms) — not only exact #id.
  */
 
 import type { ActionType, Locator } from "../artifact/schema.js";
@@ -35,6 +36,9 @@ export const IRREVERSIBLE_CONTROL_POLICY: {
   ],
 };
 
+/** Name-bearing HTML/ARIA attributes often used in CSS attribute selectors. */
+const NAME_BEARING_ATTRS = ["name", "aria-label", "title", "placeholder", "aria-labelledby", "value", "alt"];
+
 /** Trim, collapse whitespace, lowercase — for control name comparisons. */
 export function normalizeControlName(s: string): string {
   return s.trim().replace(/\s+/g, " ").toLowerCase();
@@ -49,16 +53,78 @@ export function idTokenWords(id: string): string {
 }
 
 /**
- * Extract element id candidates from CSS locators:
- *   #oaConfirm, [id=oaConfirm], [id="oaConfirm"], [id='oaConfirm']
+ * Decode CSS identifier escapes so #\6f aSubmit → #oaSubmit.
+ * Hex escapes: \HHHHHH with optional whitespace terminator (CSS Syntax).
+ */
+export function decodeCssIdent(raw: string): string {
+  return raw
+    .replace(/\\([0-9a-fA-F]{1,6})[\t\n\f ]?/g, (_m, hex: string) =>
+      String.fromCodePoint(parseInt(hex, 16)),
+    )
+    .replace(/\\(.)/g, "$1");
+}
+
+export function looksIrreversibleName(normalized: string): boolean {
+  return /\b(confirm|submit)\b/.test(normalized);
+}
+
+/**
+ * Extract element id candidates from CSS locators, including escapes and
+ * attribute operators: #oaConfirm, #\6f aSubmit, [id=oaConfirm], [id*=Confirm].
  */
 export function extractCssIds(cssValue: string): string[] {
+  const decoded = decodeCssIdent(cssValue);
   const ids: string[] = [];
-  const hash = cssValue.matchAll(/#([A-Za-z][\w-]*)/g);
-  for (const m of hash) ids.push(m[1]!);
-  const attr = cssValue.matchAll(/\[\s*id\s*=\s*(?:["']?)([A-Za-z][\w-]*)(?:["']?)\s*\]/gi);
-  for (const m of attr) ids.push(m[1]!);
+
+  for (const m of decoded.matchAll(/#([A-Za-z_][\w-]*)/g)) {
+    ids.push(m[1]!);
+  }
+  // Exact equals (optional quotes)
+  for (const m of decoded.matchAll(/\[\s*id\s*=\s*(["']?)([A-Za-z_][\w-]*)\1\s*\]/gi)) {
+    ids.push(m[2]!);
+  }
+  // *= ^= $= |= ~= operators — capture the comparison token
+  for (const m of decoded.matchAll(/\[\s*id\s*[*^$|~]=(["']?)([^\]"']+)\1\s*\]/gi)) {
+    ids.push(m[2]!.trim());
+  }
   return [...new Set(ids)];
+}
+
+/**
+ * Extract name-bearing attribute values from CSS selectors:
+ *   [aria-label="Confirm Payment"], [name=confirm], [title*="Submit"],
+ *   [placeholder="Confirm Payment"]
+ */
+export function extractCssNameSignals(cssValue: string): string[] {
+  const decoded = decodeCssIdent(cssValue);
+  const out: string[] = [];
+  const attrAlt = NAME_BEARING_ATTRS.map((a) => a.replace(/-/g, "\\-")).join("|");
+  const re = new RegExp(
+    String.raw`\[\s*(?:${attrAlt})\s*(?:[*^$|~]?=)\s*(["']?)([^\]"']+)\1\s*\]`,
+    "gi",
+  );
+  for (const m of decoded.matchAll(re)) {
+    const v = m[2]!.trim();
+    if (v) out.push(v);
+  }
+  return [...new Set(out)];
+}
+
+function idIsIrreversible(id: string): boolean {
+  const decoded = decodeCssIdent(id);
+  if (IRREVERSIBLE_CONTROL_POLICY.cssIds.includes(decoded)) return true;
+  if (looksIrreversibleName(idTokenWords(decoded))) return true;
+  if (looksIrreversibleName(normalizeControlName(decoded))) return true;
+  return false;
+}
+
+function textIsIrreversible(raw: string): boolean {
+  const normalized = normalizeControlName(raw);
+  if (looksIrreversibleName(normalized)) return true;
+  for (const rn of IRREVERSIBLE_CONTROL_POLICY.roleNames) {
+    if (normalized === normalizeControlName(rn.name)) return true;
+  }
+  return false;
 }
 
 export type GatedAction = {
@@ -72,23 +138,24 @@ export type GatedAction = {
   hint?: string;
 };
 
-function looksIrreversibleName(normalized: string): boolean {
-  return /\b(confirm|submit)\b/.test(normalized);
-}
-
-function idIsIrreversible(id: string): boolean {
-  if (IRREVERSIBLE_CONTROL_POLICY.cssIds.includes(id)) return true;
-  return looksIrreversibleName(idTokenWords(id));
-}
-
 export function resolveIrreversible(gated: GatedAction): boolean {
   if (gated.irreversible === true) return true;
   const loc = gated.locator;
 
-  // CSS id paths: #oaConfirm and [id=oaConfirm] (attribute form often missed by #only regex)
+  // Enter commonly submits forms — fail-closed without confirmIrreversible
+  if (gated.action === "press") {
+    const key = (gated.key ?? "").split("+").pop() ?? "";
+    if (/^Enter$/i.test(key)) return true;
+  }
+
+  // CSS id paths: #id, hex-escaped #id, [id=…], [id*=Confirm], etc.
   if (loc?.strategy === "css") {
     for (const id of extractCssIds(loc.value)) {
       if (idIsIrreversible(id)) return true;
+    }
+    // CSS name/aria-label/title/placeholder attribute selectors
+    for (const signal of extractCssNameSignals(loc.value)) {
+      if (textIsIrreversible(signal) || idIsIrreversible(signal)) return true;
     }
   }
 
@@ -96,10 +163,6 @@ export function resolveIrreversible(gated: GatedAction): boolean {
   if (loc?.value) textCandidates.push(loc.value);
   if (gated.value) textCandidates.push(gated.value);
   if (gated.hint) textCandidates.push(gated.hint);
-  // press may carry associated control text in value/hint without a locator
-  if (gated.action === "press" && gated.key) {
-    // key alone is not irreversible; value/hint already collected
-  }
 
   for (const raw of textCandidates) {
     const normalized = normalizeControlName(raw);
@@ -107,20 +170,26 @@ export function resolveIrreversible(gated: GatedAction): boolean {
     for (const rn of IRREVERSIBLE_CONTROL_POLICY.roleNames) {
       const policyName = normalizeControlName(rn.name);
       if (normalized === policyName) {
-        if (!loc) return true; // hint/press/value path
+        if (!loc) return true;
         if (
           (loc.strategy === "role_name" || loc.strategy === "frame_role_name") &&
           (loc.role ?? "button") === rn.role
         ) {
           return true;
         }
-        if (loc.strategy === "text" || loc.strategy === "label") return true;
-        // css already handled via ids; still treat exact policy name on any strategy
+        // text / label / placeholder all name-bearing strategies
+        if (
+          loc.strategy === "text" ||
+          loc.strategy === "label" ||
+          loc.strategy === "placeholder"
+        ) {
+          return true;
+        }
         if (loc.strategy !== "css") return true;
       }
     }
 
-    // Fail-closed word-boundary confirm|submit on label / role / text / hint / press value
+    // Fail-closed confirm|submit on name-bearing strategies (incl. placeholder)
     const strategy = loc?.strategy;
     const checkHeuristic =
       !loc ||
@@ -128,6 +197,7 @@ export function resolveIrreversible(gated: GatedAction): boolean {
       strategy === "frame_role_name" ||
       strategy === "text" ||
       strategy === "label" ||
+      strategy === "placeholder" ||
       gated.action === "press" ||
       gated.hint != null;
 
@@ -215,15 +285,4 @@ export function sanitizeToolArgs(raw: unknown): Record<string, unknown> {
     }
   }
   return out;
-}
-
-/**
- * Sanitize capability/artifact file basenames: strip path traversal and
- * allowlist [A-Za-z0-9._-]. Empty/unsafe names fall back to "artifact".
- */
-export function sanitizeArtifactFilename(name: string): string {
-  const base = name.replace(/\\/g, "/").split("/").pop() ?? "";
-  const cleaned = base.replace(/[^A-Za-z0-9._-]/g, "_").replace(/^\.+/, "");
-  const trimmed = cleaned.slice(0, 120);
-  return trimmed.length > 0 ? trimmed : "artifact";
 }

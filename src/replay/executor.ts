@@ -38,25 +38,34 @@ function toDriverLocator(loc: Locator): DriverLocator {
   };
 }
 
-async function resolveWithFallbacks(
+/**
+ * Try primary locator then alternatives. Returns the WINNING locator (must be used
+ * for the subsequent action — do not wait-on-alt then act-on-primary).
+ */
+export async function resolveWithFallbacks(
   driver: SurfaceDriver,
   loc: Locator,
-  op: "wait" | "visible",
-): Promise<boolean> {
-  const chain = [loc, ...(loc.alternatives ?? []).map((a) => ({ ...loc, ...a }))];
+  op: "wait" | "visible" = "wait",
+): Promise<Locator | null> {
+  const chain: Locator[] = [
+    loc,
+    ...(loc.alternatives ?? []).map((a) => ({ ...loc, ...a, alternatives: [] as Locator["alternatives"] })),
+  ];
   for (const candidate of chain) {
     const d = toDriverLocator(candidate);
     try {
       if (op === "wait") {
         await driver.waitFor(d, 5_000);
-        return true;
+        return { ...candidate, alternatives: [] };
       }
-      if (await driver.isVisible(d, 1_500)) return true;
+      if (await driver.isVisible(d, 1_500)) {
+        return { ...candidate, alternatives: [] };
+      }
     } catch {
       /* try next */
     }
   }
-  return false;
+  return null;
 }
 
 function matchBusinessOutcome(
@@ -136,7 +145,7 @@ export async function replayCapability(opts: ReplayOptions): Promise<ReplayResul
     const outputs: Record<string, string | number | boolean> = {};
 
     for (const step of artifact.steps) {
-      logger.info("replay", `Step ${step.id}: ${step.action} — ${step.description}`);
+      logger.debug("replay", `Step ${step.id}: ${step.action} — ${step.description}`);
 
       try {
         gateAction(
@@ -263,8 +272,8 @@ export async function replayCapability(opts: ReplayOptions): Promise<ReplayResul
           };
         }
 
-        const ok = await resolveWithFallbacks(opts.driver, step.checkpoint.locator, "wait");
-        if (!ok) {
+        const checkpointWon = await resolveWithFallbacks(opts.driver, step.checkpoint.locator, "wait");
+        if (!checkpointWon) {
           // Re-check business outcomes from broader text patterns even if locator missed
           const bo2 = matchBusinessOutcome(
             snap.visibleText,
@@ -289,7 +298,7 @@ export async function replayCapability(opts: ReplayOptions): Promise<ReplayResul
         }
 
         if (step.checkpoint.expectText) {
-          const text = await opts.driver.readText(toDriverLocator(step.checkpoint.locator));
+          const text = await opts.driver.readText(toDriverLocator(checkpointWon));
           if (!text.toLowerCase().includes(step.checkpoint.expectText.toLowerCase())) {
             // business outcome?
             const bo3 = matchBusinessOutcome(text + "\n" + snap.visibleText, step.checkpoint.businessOutcomes ?? []);
@@ -329,7 +338,7 @@ export async function replayCapability(opts: ReplayOptions): Promise<ReplayResul
       };
     }
 
-    const successOk = await resolveWithFallbacks(opts.driver, sc.locator, "wait");
+    const successOk = (await resolveWithFallbacks(opts.driver, sc.locator, "wait")) != null;
     if (!successOk) {
       return await fail(
         "successCheckpoint",
@@ -344,7 +353,9 @@ export async function replayCapability(opts: ReplayOptions): Promise<ReplayResul
       if (out.name in outputs) continue;
       if (!out.locator) continue;
       try {
-        let text = await opts.driver.readText(toDriverLocator(out.locator));
+        const outWon = await resolveWithFallbacks(opts.driver, out.locator, "wait");
+        if (!outWon) throw new Error("output locator not found");
+        let text = await opts.driver.readText(toDriverLocator(outWon));
         if (out.extractPattern) {
           const m = text.match(new RegExp(out.extractPattern, "i"));
           if (m) text = m[1] ?? m[0];
@@ -416,23 +427,25 @@ async function executeStep(
     }
     case "click": {
       if (!step.locator) throw new Error("click requires locator");
-      const ok = await resolveWithFallbacks(driver, step.locator, "wait");
-      if (!ok) throw new Error(`click target not found: ${step.locator.value}`);
-      await driver.click(toDriverLocator(step.locator));
+      const won = await resolveWithFallbacks(driver, step.locator, "wait");
+      if (!won) throw new Error(`click target not found: ${step.locator.value}`);
+      await driver.click(toDriverLocator(won));
       break;
     }
     case "fill": {
       if (!step.locator) throw new Error("fill requires locator");
       const value = paramValue != null ? String(paramValue) : (step.value ?? "");
-      const ok = await resolveWithFallbacks(driver, step.locator, "wait");
-      if (!ok) throw new Error(`fill target not found: ${step.locator.value}`);
-      await driver.fill(toDriverLocator(step.locator), value);
+      const won = await resolveWithFallbacks(driver, step.locator, "wait");
+      if (!won) throw new Error(`fill target not found: ${step.locator.value}`);
+      await driver.fill(toDriverLocator(won), value);
       break;
     }
     case "select": {
       if (!step.locator) throw new Error("select requires locator");
       const value = paramValue != null ? String(paramValue) : (step.value ?? "");
-      await driver.select(toDriverLocator(step.locator), value);
+      const won = await resolveWithFallbacks(driver, step.locator, "wait");
+      if (!won) throw new Error(`select target not found: ${step.locator.value}`);
+      await driver.select(toDriverLocator(won), value);
       break;
     }
     case "press": {
@@ -441,28 +454,31 @@ async function executeStep(
     }
     case "wait_for": {
       if (!step.locator) throw new Error("wait_for requires locator");
-      const ok = await resolveWithFallbacks(driver, step.locator, "wait");
-      if (!ok) throw new Error(`wait_for timed out: ${step.locator.value}`);
+      const won = await resolveWithFallbacks(driver, step.locator, "wait");
+      if (!won) throw new Error(`wait_for timed out: ${step.locator.value}`);
       break;
     }
     case "extract": {
       if (!step.locator || !step.outputName) throw new Error("extract requires locator+outputName");
-      const text = await driver.readText(toDriverLocator(step.locator));
+      const won = await resolveWithFallbacks(driver, step.locator, "wait");
+      if (!won) throw new Error(`extract target not found: ${step.locator.value}`);
+      const text = await driver.readText(toDriverLocator(won));
       const safe = redactText(text);
       outputs[step.outputName] = safe;
-      logger.info("replay", `Extracted ${step.outputName}`, { preview: safe.slice(0, 80) });
+      logger.debug("replay", `Extracted ${step.outputName}`, { preview: safe.slice(0, 80) });
       break;
     }
     case "assert": {
       if (!step.locator) throw new Error("assert requires locator");
-      const ok = await resolveWithFallbacks(driver, step.locator, "wait");
-      if (!ok) throw new Error(`assert failed: ${step.description}`);
+      const won = await resolveWithFallbacks(driver, step.locator, "wait");
+      if (!won) throw new Error(`assert failed: ${step.description}`);
       break;
     }
     case "dismiss_if_present": {
       if (!step.locator) return;
-      if (await driver.isVisible(toDriverLocator(step.locator), 800)) {
-        await driver.click(toDriverLocator(step.locator));
+      const won = await resolveWithFallbacks(driver, step.locator, "visible");
+      if (won) {
+        await driver.click(toDriverLocator(won));
       }
       break;
     }

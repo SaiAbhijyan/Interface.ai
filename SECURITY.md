@@ -30,8 +30,9 @@ Authoritative sources (in order):
 
 1. Explicit `step.irreversible: true` on the CapabilityArtifact
 2. `IRREVERSIBLE_CONTROL_POLICY` — known CSS ids (`oaConfirm`, `oaSubmit`) and role/name pairs (`Submit`, `Confirm & Submit`)
+3. Fail-closed whole-word `\b(confirm|submit)\b` on name-bearing signals: placeholder, label, role/text, hint, press value, CSS id tokens (including hex-escaped `#\6f aSubmit` and `[id*=…]` / `^=` / `$=`), and CSS `name` / `aria-label` / `title` / `placeholder` attribute selectors. Press `Enter` is also treated as irreversible (form submit).
 
-A step with `irreversible: false` targeting `#oaSubmit` still gates. Name heuristics like `/confirm/i` are **not** used (they miss Submit / #oaSubmit).
+A step with `irreversible: false` targeting `#oaSubmit` (or any of the signals above) still gates.
 
 ## Residual risks
 
@@ -60,7 +61,8 @@ A step with `irreversible: false` targeting `#oaSubmit` still gates. Name heuris
 
 ## Security BLOCK patches (re-freeze)
 
-- CSS `[id=…]` / `[id="…"]` irreversible + label Confirm Payment fail-closed
+- CSS `[id=…]` / `[id="…"]` / `[id*=…]` / hex-escaped ids irreversible + label/placeholder Confirm Payment fail-closed
+- CSS `name` / `aria-label` / `title` / `placeholder` attribute selectors scanned for confirm|submit
 - Artifact filename sanitized (`artifactJsonFileName`) — no path traversal via `artifact.name`
 - `HITL_MODE` defaults to **manual** (fail-closed); `mock` only when explicit
 - Extract/output values redacted before logs and evidence payloads

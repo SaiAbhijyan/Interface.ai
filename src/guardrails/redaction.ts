@@ -82,6 +82,7 @@ export function assertNoSecretsInArtifactJson(json: string): void {
     { name: "jwt", label: "JWT" },
     { name: "card", label: "PAN-like digit run" },
     { name: "password_field", label: "password/secret assignment" },
+    { name: "email", label: "email address" },
   ];
   for (const { name, label } of checks) {
     const re = clonePattern(name);

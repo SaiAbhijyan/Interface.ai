@@ -3,6 +3,7 @@ import { spawn, type ChildProcess } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { PlaywrightSurfaceDriver } from "../../src/surface/playwright-driver.js";
+import { rawPageForTests } from "../helpers/raw-page.js";
 import { buildLookupSavingsArtifact } from "../../src/artifact/fixtures.js";
 import { replayCapability } from "../../src/replay/executor.js";
 import { CapabilityArtifactSchema } from "../../src/artifact/schema.js";
@@ -119,7 +120,7 @@ describe("E2E allowlist nav escape", () => {
   it("click-nav escape via rawPage link is fail-hard on next observe", async () => {
     const driver = new PlaywrightSurfaceDriver({ headless: true });
     await driver.open(BASE + "/");
-    const page = driver.rawPage();
+    const page = rawPageForTests(driver);
     await page.evaluate(() => {
       const a = document.createElement("a");
       a.id = "escape-link";

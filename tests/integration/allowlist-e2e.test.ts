@@ -3,6 +3,7 @@ import { spawn, type ChildProcess } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { PlaywrightSurfaceDriver } from "../../src/surface/playwright-driver.js";
+import { rawPageForTests } from "../helpers/raw-page.js";
 import { PolicyViolation } from "../../src/guardrails/allowlist.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -59,7 +60,7 @@ describe("allowlist E2E PoCs", () => {
   it("nav interceptor blocks rawPage.goto to disallowed path (abort / no land)", async () => {
     const driver = new PlaywrightSurfaceDriver({ headless: true });
     await driver.open(BASE + "/");
-    const page = driver.rawPage();
+    const page = rawPageForTests(driver);
     const before = page.url();
 
     let gotoErrored = false;
@@ -93,7 +94,7 @@ describe("allowlist E2E PoCs", () => {
   it("injected link click to off-allowlist does not land on secret-admin", async () => {
     const driver = new PlaywrightSurfaceDriver({ headless: true });
     await driver.open(BASE + "/");
-    const page = driver.rawPage();
+    const page = rawPageForTests(driver);
 
     await page.evaluate(() => {
       const a = document.createElement("a");

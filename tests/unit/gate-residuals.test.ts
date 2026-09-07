@@ -104,8 +104,19 @@ describe("fill/select gate completeness", () => {
 
   it("press requires key and gates allowlist", () => {
     expect(() => gateAction({ action: "press" }, DEFAULT_ALLOWLIST)).toThrow(PolicyViolation);
+    // Enter is irreversible (form submit) — needs confirm
     expect(() =>
       gateAction({ action: "press", key: "Enter" }, DEFAULT_ALLOWLIST),
+    ).toThrow(PolicyViolation);
+    expect(() =>
+      gateAction(
+        { action: "press", key: "Enter" },
+        DEFAULT_ALLOWLIST,
+        { confirmIrreversible: true },
+      ),
+    ).not.toThrow();
+    expect(() =>
+      gateAction({ action: "press", key: "Tab" }, DEFAULT_ALLOWLIST),
     ).not.toThrow();
     expect(() =>
       gateAction({ action: "press", key: "Meta+a" }, DEFAULT_ALLOWLIST),
@@ -281,5 +292,111 @@ describe("css [id=...] and label irreversible (Security BLOCK)", () => {
         { confirmIrreversible: false },
       ),
     ).toThrow(PolicyViolation);
+  });
+});
+
+describe("HIGH residual PoC: placeholder + encoded/[id*=] css id (fail-closed)", () => {
+  it("gates placeholder strategy Confirm Payment (PoC must not bypass)", () => {
+    expect(
+      resolveIrreversible({
+        action: "click",
+        locator: { strategy: "placeholder", value: "Confirm Payment", alternatives: [] },
+      }),
+    ).toBe(true);
+    expect(() =>
+      gateAction(
+        {
+          action: "click",
+          locator: { strategy: "placeholder", value: "Confirm Payment", alternatives: [] },
+        },
+        DEFAULT_ALLOWLIST,
+        { confirmIrreversible: false },
+      ),
+    ).toThrow(PolicyViolation);
+  });
+
+  it("gates [id*=Confirm] / [id*=oaConfirm] substring attribute selectors", () => {
+    for (const css of ['[id*=Confirm]', '[id*="Confirm"]', "[id*='oaConfirm']", '[id^=submit]', '[id$=Submit]']) {
+      expect(
+        resolveIrreversible({
+          action: "click",
+          locator: { strategy: "css", value: css, alternatives: [] },
+        }),
+        css,
+      ).toBe(true);
+    }
+  });
+
+  it("gates hex-escaped CSS id (#\\6f aSubmit → oaSubmit)", () => {
+    // CSS hex escape for 'o' is \6f with optional whitespace terminator
+    expect(
+      resolveIrreversible({
+        action: "click",
+        locator: { strategy: "css", value: "#\\6f aSubmit", alternatives: [] },
+      }),
+    ).toBe(true);
+    expect(() =>
+      gateAction(
+        {
+          action: "click",
+          locator: { strategy: "css", value: "#\\6f aSubmit", alternatives: [] },
+        },
+        DEFAULT_ALLOWLIST,
+        { confirmIrreversible: false },
+      ),
+    ).toThrow(PolicyViolation);
+  });
+
+  it("gates CSS name / aria-label / title / placeholder attribute signals", () => {
+    for (const css of [
+      '[aria-label="Confirm Payment"]',
+      "[name=confirm]",
+      '[title="Confirm Payment"]',
+      '[placeholder="Confirm Payment"]',
+      '[aria-label*="Submit"]',
+    ]) {
+      expect(
+        resolveIrreversible({
+          action: "click",
+          locator: { strategy: "css", value: css, alternatives: [] },
+        }),
+        css,
+      ).toBe(true);
+    }
+  });
+
+  it("gates press value / hint Confirm Payment text signals", () => {
+    expect(
+      resolveIrreversible({
+        action: "press",
+        key: "Tab",
+        value: "Confirm Payment",
+      }),
+    ).toBe(true);
+    expect(
+      resolveIrreversible({
+        action: "click",
+        locator: { strategy: "css", value: "#oaSearch", alternatives: [] },
+        hint: "Confirm Payment",
+      }),
+    ).toBe(true);
+  });
+
+  it("ordinary placeholder Search stays false", () => {
+    expect(
+      resolveIrreversible({
+        action: "click",
+        locator: { strategy: "placeholder", value: "Search members", alternatives: [] },
+      }),
+    ).toBe(false);
+  });
+});
+
+describe("rawPage production surface (Security H2)", () => {
+  it("does not expose rawPage on PlaywrightSurfaceDriver prototype", () => {
+    expect("rawPage" in PlaywrightSurfaceDriver.prototype).toBe(false);
+    expect(typeof (PlaywrightSurfaceDriver.prototype as { rawPage?: unknown }).rawPage).toBe(
+      "undefined",
+    );
   });
 });

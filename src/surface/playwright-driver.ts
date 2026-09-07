@@ -396,7 +396,4 @@ export class PlaywrightSurfaceDriver implements SurfaceDriver {
     };
   }
 
-  rawPage(): Page {
-    return this.getPage();
-  }
 }

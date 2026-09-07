@@ -1,14 +1,10 @@
 # Evidence
 
-## Discovery
-Live LLM discovery was **not** run: OPENAI_API_KEY was missing in this environment.
-Synthetic labeled discovery evidence is under the discover-synthetic-* directory (see SYNTHETIC_LABEL.txt).
-The mock UI was observed live during synthetic discover.
+## Curated keepers (committed)
+- `replay-success.json` — deterministic lookup success (member 10001) → status `success`
+- `replay-business-outcome.json` — MEM_NOT_FOUND (member 99999) → status `business_outcome` (not hard_failure)
+- `discover-synthetic-302f56/` — one labeled synthetic discovery run (see SYNTHETIC_LABEL.txt)
 
-## Replay
-- replay-success.json — deterministic lookup success (member 10001) → status `success`
-- replay-business-outcome.json — MEM_NOT_FOUND (member 99999) → status `business_outcome` (not hard_failure)
-- Per-run JSONL logs under replay-*/
-
-## Metrics
-See docs/EVAL_METRICS.md — capability success = success ∪ business_outcome; hard_failure is system failure only.
+## Ignored mass runs
+Per-run JSONL/screenshot dirs under `evidence/replay-*/` are **gitignored** (see root `.gitignore`).
+Do not commit mass replay spam; delete local `replay-*` dirs when trimming the tree.

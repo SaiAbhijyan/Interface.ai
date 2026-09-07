@@ -64,6 +64,13 @@ describe("redaction", () => {
   it("exports shared SECRET_REFUSAL_PATTERNS list", () => {
     expect(SECRET_REFUSAL_PATTERNS.length).toBeGreaterThanOrEqual(6);
     const names = SECRET_REFUSAL_PATTERNS.map((p) => p.name);
-    expect(names).toEqual(expect.arrayContaining(["jwt", "card", "password_field", "ssn"]));
+    expect(names).toEqual(expect.arrayContaining(["jwt", "card", "password_field", "ssn", "email"]));
+  });
+
+  it("assertNoSecretsInArtifactJson refuses email", () => {
+    expect(() =>
+      assertNoSecretsInArtifactJson('{"e":"member@bank.example"}'),
+    ).toThrow(/email/i);
   });
 });
+
