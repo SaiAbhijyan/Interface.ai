@@ -1,3 +1,6 @@
+import fs from "node:fs";
+import path from "node:path";
+
 /**
  * Redact secrets and PII before artifacts, logs, or LLM observe payloads.
  */
@@ -25,6 +28,11 @@ export const SECRET_REFUSAL_PATTERNS: { name: string; re: RegExp; replace: strin
     re: /(\bName\b(?:<\/td>)?\s*(?:<td>)?\s*)([A-Z][a-z]+\s+[A-Z][a-z]+)/g,
     replace: "$1[REDACTED_NAME]",
   },
+  {
+    name: "env_api_key",
+    re: /((?:OPENAI_API_KEY|ANTHROPIC_API_KEY|API[_-]?KEY)["']?\s*[:=]\s*["']?)[^"'\s}]+/gi,
+    replace: "$1[REDACTED_API_KEY]",
+  },
 ];
 
 function clonePattern(name: string): RegExp | null {
@@ -41,8 +49,12 @@ export function redactText(input: string): string {
   return out;
 }
 
+/** Keys whose values are always redacted at rest (logs / LLM payloads / evidence). */
+export const SENSITIVE_KEY_RE =
+  /password|secret|token|ssn|pan|card|cvv|pin|credential|api[_-]?key|authorization|cookie|session|member[_-]?id|account(?:[_-]?id|[_-]?number)?|customer(?:[_-]?id)?|bank|routing|iban|email|phone|dob|date[_-]?of[_-]?birth/i;
+
 export function redactValue(key: string, value: unknown): unknown {
-  const sensitiveKeys = /password|secret|token|ssn|pan|card|cvv|pin|credential|api[_-]?key|authorization|cookie|session/i;
+  const sensitiveKeys = SENSITIVE_KEY_RE;
   if (sensitiveKeys.test(key)) return "[REDACTED]";
   if (typeof value === "string") return redactText(value);
   if (Array.isArray(value)) return value.map((v, i) => redactValue(String(i), v));
@@ -74,9 +86,12 @@ export function redactObserveSnapshot<T extends { visibleText?: string; accessib
 }
 
 export function assertNoSecretsInArtifactJson(json: string): void {
+  // Ignore already-redacted placeholders so fail-closed scans of logs don't false-positive.
+  const scrubbed = json.replace(/\[REDACTED[^\]]*\]/gi, "");
   const checks: { name: string; label: string }[] = [
     { name: "openai_key", label: "API key material" },
     { name: "anthropic_key", label: "API key material" },
+    { name: "env_api_key", label: "API key assignment" },
     { name: "bearer", label: "bearer token" },
     { name: "ssn", label: "SSN-like data" },
     { name: "jwt", label: "JWT" },
@@ -86,8 +101,29 @@ export function assertNoSecretsInArtifactJson(json: string): void {
   ];
   for (const { name, label } of checks) {
     const re = clonePattern(name);
-    if (re && re.test(json)) {
+    if (re && re.test(scrubbed)) {
       throw new Error("Refusing to persist artifact containing " + label);
+    }
+  }
+}
+
+/**
+ * Fail-closed scan of an evidence directory before commit/promotion.
+ * Scans artifact.json, *.jsonl, and *.txt under `dir` (non-recursive).
+ */
+export function assertNoSecretsInEvidenceDir(dir: string): void {
+  if (!fs.existsSync(dir)) {
+    throw new Error(`Evidence dir missing: ${dir}`);
+  }
+  const files = fs.readdirSync(dir).filter((f) => /\.(json|jsonl|txt)$/i.test(f));
+  for (const f of files) {
+    const full = path.join(dir, f);
+    const body = fs.readFileSync(full, "utf8");
+    try {
+      assertNoSecretsInArtifactJson(body);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      throw new Error(`${msg} (file: ${f})`);
     }
   }
 }

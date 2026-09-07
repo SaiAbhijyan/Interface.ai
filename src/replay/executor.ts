@@ -8,7 +8,7 @@ import {
   type ReplayResult,
   type Step,
 } from "../artifact/schema.js";
-import type { SurfaceDriver, DriverLocator } from "../surface/types.js";
+import type { SurfaceDriver, DriverLocator, HumanSessionHandle } from "../surface/types.js";
 import {
   assertUrlAllowed,
   loadAllowlistFromEnv,
@@ -18,7 +18,7 @@ import { gateAction, resolveIrreversible } from "../guardrails/action-gate.js";
 import { safeEvidenceFileToken } from "../guardrails/safe-path.js";
 import { redactText, redactObject } from "../guardrails/redaction.js";
 import { RunLogger } from "../observability/logger.js";
-import { escalateToHuman } from "../hitl/handoff.js";
+import { escalateToHuman, type InterventionRequest } from "../hitl/handoff.js";
 
 export type ReplayOptions = {
   artifact: CapabilityArtifact;
@@ -28,6 +28,11 @@ export type ReplayOptions = {
   confirmIrreversible?: boolean;
   /** Escalate to HITL on hard_failure instead of returning immediately */
   hitlOnHardFailure?: boolean;
+  /** Manual HITL: operator signal (required when HITL_MODE=manual) */
+  waitForOperator?: (
+    handle: HumanSessionHandle,
+    req: InterventionRequest,
+  ) => Promise<string>;
 };
 
 function toDriverLocator(loc: Locator): DriverLocator {
@@ -255,6 +260,7 @@ export async function replayCapability(opts: ReplayOptions): Promise<ReplayResul
               observedSummary: observed,
               createdAt: new Date().toISOString(),
             },
+            waitForOperator: opts.waitForOperator,
           });
           // After HITL, retry once
           try {

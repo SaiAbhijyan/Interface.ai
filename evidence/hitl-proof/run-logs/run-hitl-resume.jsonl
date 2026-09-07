@@ -1,0 +1,2 @@
+{"ts":"2026-09-07T23:26:39.903Z","level":"warn","runId":"hitl-resume","phase":"hitl","message":"Intervention requested — pausing automation on live session","data":{"sessionId":"[REDACTED]","reason":"replay stuck (proof)","stepId":"step-proof","attach":"Stub HITL: headed Playwright page retained (proof script; no CDP attach)."}}
+{"ts":"2026-09-07T23:26:39.958Z","level":"info","runId":"hitl-resume","phase":"hitl","message":"Control returned to automation","data":{"sessionId":"[REDACTED]","operatorNotes":"Operator cleared gate (hitl-proof script)."}}

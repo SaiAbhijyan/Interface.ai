@@ -2,7 +2,7 @@
   "name": "interface-ai-computer-use",
   "version": "1.0.0",
   "private": true,
-  "description": "Computer-use automation: LLM discovery → CapabilityArtifact → deterministic replay",
+  "description": "Computer-use automation: LLM discovery \u2192 CapabilityArtifact \u2192 deterministic replay",
   "type": "module",
   "engines": {
     "node": ">=20"
@@ -15,7 +15,9 @@
     "test": "vitest run",
     "test:unit": "vitest run tests/unit",
     "test:integration": "vitest run tests/integration",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "evidence:clean-check": "tsx scripts/assert-evidence-clean.ts",
+    "hitl:proof": "node scripts/hitl-proof.mjs"
   },
   "dependencies": {
     "openai": "^4.77.0",

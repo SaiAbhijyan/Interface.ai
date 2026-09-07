@@ -1,0 +1,10 @@
+{
+  "reason": "replay stuck (proof)",
+  "capabilityName": "lookup_member_savings_balance",
+  "stepId": "step-proof",
+  "observedSummary": "element_not_found (scripted proof)",
+  "createdAt": "2026-09-07T23:26:39.900Z",
+  "sessionId": "sess-hitl-proof",
+  "attachInstructions": "Stub HITL: headed Playwright page retained (proof script; no CDP attach).",
+  "pausedAt": "2026-09-07T23:26:39.905Z"
+}

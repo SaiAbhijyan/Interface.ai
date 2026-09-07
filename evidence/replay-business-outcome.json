@@ -5,7 +5,7 @@
     "message": "No member exists for the given Member ID"
   },
   "evidence": {
-    "logPath": "/workspace/Interface.ai/evidence/replay-6bd39e28/run-6bd39e28.jsonl"
+    "logPath": "/workspace/Interface.ai/evidence/replay-13da0daf/run-13da0daf.jsonl"
   },
-  "durationMs": 804
+  "durationMs": 877
 }

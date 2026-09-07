@@ -1,0 +1,1 @@
+Stub HITL: headed Playwright page retained (proof script; no CDP attach).

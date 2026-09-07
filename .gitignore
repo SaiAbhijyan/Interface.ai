@@ -9,8 +9,16 @@ traces/
 *.trace.zip
 .tmp/
 coverage/
+# Mass per-run dirs (not keepers)
 evidence/replay-*/
-evidence/discover-*/
+# Keepers / docs (committed)
 !evidence/replay-success.json
 !evidence/replay-business-outcome.json
 !evidence/README.md
+!evidence/discover-synthetic-*/
+!evidence/demo-proof/
+!evidence/demo-proof/**
+!evidence/discover-live-*/
+!evidence/discover-live-*/**
+!evidence/hitl-proof/
+!evidence/hitl-proof/**

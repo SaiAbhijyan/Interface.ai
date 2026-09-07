@@ -2,7 +2,9 @@ import { describe, it, expect } from "vitest";
 import {
   aggregateEvidence,
   assertOutcomeLabeling,
+  classifyDiscoveryEvidenceDir,
   isCapabilitySuccess,
+  isPdfLiveDiscoverEvidence,
   isSystemFailure,
   stabilityScore,
   summarizeReplayResult,
@@ -94,5 +96,26 @@ describe("discovery vs replay evidence metrics", () => {
     };
     expect(summarizeReplayResult(success).status).toBe("success");
     expect(summarizeReplayResult(bo).businessOutcomeCode).toBe("MEM_NOT_FOUND");
+  });
+});
+
+describe("discover-live vs replay metrics in evidence", () => {
+  it("classifies live / synthetic / placeholder dirs", () => {
+    expect(classifyDiscoveryEvidenceDir("discover-live-a1b2c3")).toBe("live");
+    expect(classifyDiscoveryEvidenceDir("evidence/discover-synthetic-302f56")).toBe("synthetic");
+    expect(classifyDiscoveryEvidenceDir("discover-live-_PLACEHOLDER")).toBe("placeholder");
+  });
+
+  it("only discover-live with synthetic:false counts as PDF live evidence", () => {
+    expect(isPdfLiveDiscoverEvidence("live", false)).toBe(true);
+    expect(isPdfLiveDiscoverEvidence("live", true)).toBe(false);
+    expect(isPdfLiveDiscoverEvidence("synthetic", false)).toBe(false);
+    expect(isPdfLiveDiscoverEvidence("placeholder")).toBe(false);
+  });
+
+  it("replay keepers remain the production success bar", () => {
+    expect(isCapabilitySuccess("success")).toBe(true);
+    expect(isCapabilitySuccess("business_outcome")).toBe(true);
+    // discover evidence never uses ReplayStatus — production bar is replay only
   });
 });

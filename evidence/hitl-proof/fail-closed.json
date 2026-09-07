@@ -1,0 +1,7 @@
+{
+  "ok": true,
+  "errName": "HitlBlockedError",
+  "errMessage": "HITL_MODE=manual (default) requires waitForOperator callback; refusing fail-open auto-resume. Set HITL_MODE=mock explicitly for demo auto-resume.",
+  "mode": "manual",
+  "waiter": false
+}

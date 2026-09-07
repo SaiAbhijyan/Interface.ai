@@ -129,3 +129,26 @@ export function summarizeReplayResult(result: ReplayResult): EvidenceRunSummary 
     hasScreenshot: Boolean(result.evidence?.screenshotPath),
   };
 }
+
+
+export type DiscoveryEvidenceKind = "live" | "synthetic" | "placeholder" | "unknown";
+
+/** Classify an evidence directory name for discover-live vs synthetic metrics. */
+export function classifyDiscoveryEvidenceDir(dirName: string): DiscoveryEvidenceKind {
+  const parts = dirName.replace(/\\/g, "/").split("/").filter(Boolean);
+  const base = parts[parts.length - 1] ?? dirName;
+  if (base === "discover-live-_PLACEHOLDER" || base.endsWith("-_PLACEHOLDER")) return "placeholder";
+  if (base.startsWith("discover-live-")) return "live";
+  if (base.startsWith("discover-synthetic-")) return "synthetic";
+  return "unknown";
+}
+
+/**
+ * Live discover counts for PDF evidence; synthetic is fixture-only.
+ * Placeholder never counts.
+ */
+export function isPdfLiveDiscoverEvidence(kind: DiscoveryEvidenceKind, syntheticFlag?: boolean): boolean {
+  if (kind !== "live") return false;
+  if (syntheticFlag === true) return false;
+  return true;
+}

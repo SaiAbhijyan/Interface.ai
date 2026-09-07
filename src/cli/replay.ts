@@ -6,6 +6,7 @@ import { Command } from "commander";
 import { CapabilityArtifactSchema } from "../artifact/schema.js";
 import { PlaywrightSurfaceDriver } from "../surface/playwright-driver.js";
 import { replayCapability } from "../replay/executor.js";
+import { createFileWaitForOperator } from "../hitl/wait-for-operator.js";
 
 const program = new Command();
 
@@ -17,6 +18,19 @@ program
   .option("--evidence-dir <dir>", "Evidence output directory", "evidence")
   .option("--confirm-irreversible", "Allow irreversible steps", false)
   .option("--hitl-on-failure", "Escalate to HITL on hard failure", false)
+  .option(
+    "--hitl-proof-dir <dir>",
+    "Directory for HITL intervention evidence (file wait)",
+    "evidence/hitl-proof",
+  )
+  .option(
+    "--hitl-resume-file <path>",
+    "Resume signal JSON path (operator writes { operatorNotes })",
+  )
+  .option(
+    "--hitl-operator-file <path>",
+    "Alias for --hitl-resume-file (unlocks HITL_AUTO_NOTES when set)",
+  )
   .option("--headed", "Run headed browser", false)
   .action(async (opts) => {
     const params: Record<string, string | number | boolean> = {};
@@ -30,6 +44,15 @@ program
     const artifact = CapabilityArtifactSchema.parse(raw);
     const driver = new PlaywrightSurfaceDriver({ headless: !opts.headed });
 
+    const resumeFile = opts.hitlResumeFile ?? opts.hitlOperatorFile;
+    const waitForOperator = opts.hitlOnFailure
+      ? createFileWaitForOperator({
+          proofDir: opts.hitlProofDir,
+          resumeFile,
+          operatorFile: opts.hitlOperatorFile,
+        })
+      : undefined;
+
     const result = await replayCapability({
       artifact,
       params,
@@ -37,6 +60,7 @@ program
       evidenceDir: path.resolve(opts.evidenceDir),
       confirmIrreversible: opts.confirmIrreversible,
       hitlOnHardFailure: opts.hitlOnFailure,
+      waitForOperator,
     });
 
     console.log(JSON.stringify(result, null, 2));

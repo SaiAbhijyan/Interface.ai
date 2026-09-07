@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync, readFileSync, existsSync, mkdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -7,6 +7,10 @@ import {
   HitlBlockedError,
   type InterventionRequest,
 } from "../../src/hitl/handoff.js";
+import {
+  createFileWaitForOperator,
+  writeResumeSignal,
+} from "../../src/hitl/wait-for-operator.js";
 import type { SurfaceDriver, HumanSessionHandle } from "../../src/surface/types.js";
 import { RunLogger } from "../../src/observability/logger.js";
 
@@ -61,6 +65,7 @@ describe("HITL fail-closed", () => {
     rmSync(dir, { recursive: true, force: true });
     if (prev === undefined) delete process.env.HITL_MODE;
     else process.env.HITL_MODE = prev;
+    delete process.env.HITL_AUTO_NOTES;
   });
 
   it("manual mode without waitForOperator throws (no auto-resume)", async () => {
@@ -108,5 +113,117 @@ describe("HITL fail-closed", () => {
         request,
       }),
     ).rejects.toBeInstanceOf(HitlBlockedError);
+  });
+});
+
+describe("file waitForOperator helper", () => {
+  let prev: string | undefined;
+  let prevAuto: string | undefined;
+  let dir: string;
+  let proofDir: string;
+  let logger: RunLogger;
+
+  beforeEach(() => {
+    prev = process.env.HITL_MODE;
+    prevAuto = process.env.HITL_AUTO_NOTES;
+    delete process.env.HITL_AUTO_NOTES;
+    dir = mkdtempSync(join(tmpdir(), "hitl-"));
+    proofDir = join(dir, "hitl-proof");
+    mkdirSync(proofDir, { recursive: true });
+    logger = new RunLogger({ runId: "hitl-file", dir });
+  });
+
+  afterEach(async () => {
+    await logger.close();
+    rmSync(dir, { recursive: true, force: true });
+    if (prev === undefined) delete process.env.HITL_MODE;
+    else process.env.HITL_MODE = prev;
+    if (prevAuto === undefined) delete process.env.HITL_AUTO_NOTES;
+    else process.env.HITL_AUTO_NOTES = prevAuto;
+  });
+
+  it("writes evidence and resumes when resume file appears", async () => {
+    process.env.HITL_MODE = "manual";
+    const resumeFile = join(proofDir, "hitl-resume.json");
+    const waiter = createFileWaitForOperator({
+      proofDir,
+      resumeFile,
+      pollMs: 30,
+      timeoutMs: 5_000,
+      log: () => undefined,
+    });
+
+    const escalatePromise = escalateToHuman({
+      driver: stubDriver(),
+      logger,
+      request,
+      waitForOperator: waiter,
+    });
+
+    const reqPath = join(proofDir, "intervention-request.json");
+    const deadline = Date.now() + 3_000;
+    while (!existsSync(reqPath) && Date.now() < deadline) {
+      await new Promise((r) => setTimeout(r, 20));
+    }
+    expect(existsSync(reqPath)).toBe(true);
+    expect(existsSync(join(proofDir, "attach-instructions.txt"))).toBe(true);
+
+    writeResumeSignal(resumeFile, "file handshake notes", { sessionId: "sess-test" });
+
+    const result = await escalatePromise;
+    expect(result.mode).toBe("manual");
+    expect(result.operatorNotes).toBe("file handshake notes");
+    expect(readFileSync(join(proofDir, "operator-notes.txt"), "utf8")).toContain(
+      "file handshake notes",
+    );
+    expect(readFileSync(join(proofDir, "pause-log.txt"), "utf8")).toMatch(/HITL pause/);
+  });
+
+  it("HITL_AUTO_NOTES only works with explicit resume/operator file path", async () => {
+    process.env.HITL_MODE = "manual";
+    process.env.HITL_AUTO_NOTES = "auto notes from env";
+    const resumeFile = join(proofDir, "operator-resume.json");
+
+    // Without explicit path: must NOT use HITL_AUTO_NOTES (would hang / timeout).
+    // With explicit path: auto-writes resume and returns.
+    const waiter = createFileWaitForOperator({
+      proofDir,
+      resumeFile,
+      pollMs: 20,
+      timeoutMs: 2_000,
+      log: () => undefined,
+    });
+
+    const result = await escalateToHuman({
+      driver: stubDriver(),
+      logger,
+      request,
+      waitForOperator: waiter,
+    });
+    expect(result.operatorNotes).toBe("auto notes from env");
+    expect(existsSync(resumeFile)).toBe(true);
+    const body = JSON.parse(readFileSync(resumeFile, "utf8"));
+    expect(body.operatorNotes).toBe("auto notes from env");
+  });
+
+  it("does not honor HITL_AUTO_NOTES when resume path is only default", async () => {
+    process.env.HITL_MODE = "manual";
+    process.env.HITL_AUTO_NOTES = "should-not-apply";
+    const waiter = createFileWaitForOperator({
+      proofDir,
+      // no resumeFile / operatorFile → resumeExplicit false
+      pollMs: 20,
+      timeoutMs: 200,
+      log: () => undefined,
+    });
+
+    await expect(
+      escalateToHuman({
+        driver: stubDriver(),
+        logger,
+        request,
+        waitForOperator: waiter,
+      }),
+    ).rejects.toThrow(/timed out/);
   });
 });

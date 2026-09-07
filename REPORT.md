@@ -14,7 +14,11 @@ Zod CapabilityArtifact v1.0.0: parameters (typed, optional sensitive), outputs w
 
 ## Determinism & error handling
 
-Replay substitutes paramRef values, tries locator fallbacks, evaluates checkpoints, and classifies: success | business_outcome | recoverable | hard_failure (element_not_found, checkpoint_mismatch, timeout, policy_violation, irreversible_blocked, navigation_error, unknown). Tool hallucination work (Xu et al., https://arxiv.org/abs/2412.04141) motivates grounding steps to verified controls and abstain/escalate when uncertain — discovery refuses invented tools and stops on consecutive errors.
+Replay substitutes paramRef values, tries locator fallbacks, evaluates checkpoints, and classifies: success | business_outcome | recoverable | hard_failure (element_not_found, checkpoint_mismatch, timeout, policy_violation, irreversible_blocked, navigation_error, unknown).
+
+**`MEM_NOT_FOUND` is a `business_outcome`, not a `hard_failure`.** Domain not-found (e.g. member `99999`) is capability-correct: status `business_outcome`, exit 0, keeper `evidence/replay-business-outcome.json`. Do not fold BO into hard_failure when scoring or triaging evidence.
+
+Tool hallucination work (Xu et al., https://arxiv.org/abs/2412.04141) motivates grounding steps to verified controls and abstain/escalate when uncertain — discovery refuses invented tools and stops on consecutive errors.
 
 ## Heterogeneity & multi-tenant
 
@@ -22,7 +26,7 @@ SurfaceDriver abstracts web vs desktop (desktop interface-only in this slice). R
 
 ## Escalation & handoff
 
-When stuck (locator miss, consecutive tool errors, irreversible risk, hard_failure with `--hitl-on-failure`), escalateToHuman pauses the **same** Playwright session (pauseForHuman/resume) — operator attaches live, then resume. HITL_MODE defaults to **manual fail-closed** (requires waitForOperator); mock auto-resume only if HITL_MODE=mock is set explicitly. Discovery stop policy prefers escalate / hard stop over inventing recovery tools (Xu et al. tool-hallucination abstain path).
+When stuck (locator miss, consecutive tool errors, irreversible risk, hard_failure with `--hitl-on-failure`), escalateToHuman pauses the **same SurfaceDriver session** (pauseForHuman/resume) — not a live CDP headed attach. HITL_MODE defaults to **manual fail-closed**: `waitForOperator` is required (CLI file handshake via `--hitl-proof-dir`; evidence under `evidence/hitl-proof/`). Mock auto-resume only if `HITL_MODE=mock` is set explicitly. Discovery stop policy prefers escalate / hard stop over inventing recovery tools (Xu et al. tool-hallucination abstain path).
 
 ## Safety
 
@@ -31,10 +35,10 @@ Origin allowlist is scheme+host+port (blocks localhost SSRF to other ports). ass
 
 ## Evaluation metrics
 
-Discovery success = valid CapabilityArtifact via `done` (or labeled synthetic); not a production win. Replay success = `success` **or** `business_outcome` (domain codes like `MEM_NOT_FOUND` are capability-correct, exit 0) — never fold BO into `hard_failure`. Report rates over fixed packs: capability success, true failure, BO share, policy blocks, median `durationMs`, evidence completeness (JSONL; screenshot on hard_failure). Stability: identical status (+ BO code / outputs) across ≥3 replays on the same artifact+params. Helpers: `src/observability/eval-metrics.ts`. Full contract: docs/EVAL_METRICS.md.
+Discovery success = valid CapabilityArtifact via `done`; `discover-live-*` (`synthetic: false`) is the PDF-required compile evidence once OmniRoute is wired — `discover-synthetic-*` is labeled fixture only, not a substitute. Discovery is not a production win. Replay success = `success` **or** `business_outcome` (domain codes like `MEM_NOT_FOUND` are capability-correct, exit 0) — never fold BO into `hard_failure`. Report rates over fixed packs: capability success, true failure, BO share, policy blocks, median `durationMs`, evidence completeness (JSONL; screenshot on hard_failure). Stability: identical status (+ BO code / outputs) across ≥3 replays on the same artifact+params. Helpers: `src/observability/eval-metrics.ts`. Full contract: docs/EVAL_METRICS.md.
 
 ## Cuts
 
-Operator UI mocked; desktop interface-only; labeled synthetic discovery when no model API key (OPENAI absent in this env — evidence under discover-synthetic-*). Next: tenant policy packs, headed HITL attach UX, OCR scrub for screenshot PII.
+Operator UI mocked; desktop interface-only. **Live LLM discover done** via OmniRoute (`OPENAI_BASE_URL` + client `OPENAI_API_KEY`): canonical live pack `evidence/discover-live-5e157187/` (`metadata.synthetic: false`, JSONL + artifact; model `auto/best-coding` / free upstream via OmniRoute opencode). Replay keepers refreshed from live artifact (`evidence/replay-success.json` with memberId=10001 → `$4,250.33`; `evidence/replay-business-outcome.json` MEM_NOT_FOUND). Labeled `discover-synthetic-*` remains fixture-only when no key. **HITL proof** (`scripts/hitl-proof.mjs` → `evidence/hitl-proof/`) uses stub SurfaceDriver / file handshake — **not** headed CDP attach; `--hitl-proof-dir` is local CLI trust (no root jail). Next (soft heterogeneity): tenant policy packs (artifact.safety intersect env allowlist at replay); also OCR scrub for screenshot PII.
 
 Citations also listed in docs/RESEARCH_CITATIONS.md.

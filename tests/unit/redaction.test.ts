@@ -3,8 +3,13 @@ import {
   redactText,
   redactObject,
   assertNoSecretsInArtifactJson,
+  assertNoSecretsInEvidenceDir,
   SECRET_REFUSAL_PATTERNS,
+  SENSITIVE_KEY_RE,
 } from "../../src/guardrails/redaction.js";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 
 describe("redaction", () => {
   it("redacts API keys and SSNs", () => {
@@ -32,9 +37,10 @@ describe("redaction", () => {
   });
 
   it("redacts sensitive object keys", () => {
-    const o = redactObject({ password: "hunter2", memberId: "10001" });
+    const o = redactObject({ password: "hunter2", memberId: "10001", note: "ok" });
     expect(o.password).toBe("[REDACTED]");
-    expect(o.memberId).toBe("10001");
+    expect(o.memberId).toBe("[REDACTED]");
+    expect(o.note).toBe("ok");
   });
 
   it("assertNoSecretsInArtifactJson throws on key material", () => {
@@ -72,5 +78,41 @@ describe("redaction", () => {
       assertNoSecretsInArtifactJson('{"e":"member@bank.example"}'),
     ).toThrow(/email/i);
   });
-});
 
+  it("redacts identity keys (memberId/account/email) at rest", () => {
+    const o = redactObject({ memberId: "10001", accountNumber: "9988", email: "a@b.co", ok: "x" });
+    expect(o.memberId).toBe("[REDACTED]");
+    expect(o.accountNumber).toBe("[REDACTED]");
+    expect(o.email).toBe("[REDACTED]");
+    expect(o.ok).toBe("x");
+    expect(SENSITIVE_KEY_RE.test("memberId")).toBe(true);
+  });
+
+  it("redacts OPENAI_API_KEY assignments in text", () => {
+    const s = redactText('OPENAI_API_KEY=sk-abcdefghijklmnopqrstuvwxyz');
+    expect(s).toContain("[REDACTED_API_KEY]");
+    expect(s).not.toContain("sk-abcdefghijklmnop");
+  });
+
+  it("assertNoSecrets allows already-redacted placeholders", () => {
+    expect(() =>
+      assertNoSecretsInArtifactJson('{"password":"[REDACTED]","apiKey":"[REDACTED_API_KEY]"}'),
+    ).not.toThrow();
+  });
+
+  it("assertNoSecretsInEvidenceDir scans jsonl and refuses raw keys", () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "ev-clean-"));
+    fs.writeFileSync(path.join(dir, "artifact.json"), '{"name":"ok"}');
+    fs.writeFileSync(
+      path.join(dir, "run-x.jsonl"),
+      JSON.stringify({ message: "leak sk-abcdefghijklmnopqrstuvwxyz" }) + "\n",
+    );
+    expect(() => assertNoSecretsInEvidenceDir(dir)).toThrow(/API key/i);
+    fs.writeFileSync(
+      path.join(dir, "run-x.jsonl"),
+      JSON.stringify({ message: "safe", data: { memberId: "[REDACTED]" } }) + "\n",
+    );
+    expect(() => assertNoSecretsInEvidenceDir(dir)).not.toThrow();
+  });
+
+});

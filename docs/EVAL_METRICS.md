@@ -24,9 +24,23 @@ Discovery succeeds only when all of:
 3. Artifact includes ≥1 step, typed params/outputs, successCheckpoint, and safety allowlists.
 4. Params marked sensitive by default; observe/logs redacted before LLM.
 
-Labeled fixtures: `evidence/discover-synthetic-*` + `SYNTHETIC_LABEL.txt` when no live model key. Live LLM discovery is optional evidence; synthetic is explicit and reviewable.
+### discover-live vs discover-synthetic (evidence dirs)
 
-Discovery **does not** count as production capability success. Prefer `--refuse-if-artifact` / replay once an artifact exists.
+| Kind | Dir pattern | `metadata.synthetic` | Counts toward PDF “live discover” evidence? |
+|------|-------------|----------------------|-----------------------------------------------|
+| **discover-live** | `evidence/discover-live-<runId>/` | `false` | **Yes** — required once OmniRoute key is up |
+| **discover-synthetic** | `evidence/discover-synthetic-*` + `SYNTHETIC_LABEL.txt` | `true` | **No** — labeled fixture only; insufficient alone per brief |
+
+Live discovery success additionally requires:
+
+- Run via `createOpenAIClient` (`OPENAI_API_KEY` + optional `OPENAI_BASE_URL`), **without** `--synthetic-fallback`.
+- Evidence dir name `discover-live-*` (not the `_PLACEHOLDER` stub).
+- Artifact `metadata.synthetic === false`, JSONL present, params/observe redacted (Data Expert gate).
+- Same structural checks as above (`done` → Zod artifact).
+
+`evidence/discover-live-_PLACEHOLDER/` is a stub only — delete before commit once a real live run lands.
+
+Discovery **does not** count as production capability success. Prefer `--refuse-if-artifact` / replay once an artifact exists. Replay metrics below are the production bar; live discover only proves the compile path.
 
 ## Replay success (production)
 

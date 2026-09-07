@@ -4,6 +4,7 @@ import path from "node:path";
 import { Command } from "commander";
 import { PlaywrightSurfaceDriver } from "../surface/playwright-driver.js";
 import { discoverCapability } from "../agent/discover.js";
+import { createFileWaitForOperator } from "../hitl/wait-for-operator.js";
 
 const program = new Command();
 
@@ -29,6 +30,18 @@ program
     "--refuse-if-artifact <path>",
     "If artifact JSON already exists, refuse rediscovery (prefer deterministic replay)",
   )
+  .option(
+    "--hitl-proof-dir <dir>",
+    "Enable file-based HITL wait; write intervention evidence here",
+  )
+  .option(
+    "--hitl-resume-file <path>",
+    "Resume signal JSON path (operator writes { operatorNotes })",
+  )
+  .option(
+    "--hitl-operator-file <path>",
+    "Alias for --hitl-resume-file (unlocks HITL_AUTO_NOTES when set)",
+  )
   .action(async (opts) => {
     const params: Record<string, string> = {};
     for (const kv of opts.param as string[]) {
@@ -36,6 +49,17 @@ program
       if (i === -1) throw new Error(`Bad --param ${kv}; expected key=value`);
       params[kv.slice(0, i)] = kv.slice(i + 1);
     }
+
+    const resumeFile = opts.hitlResumeFile ?? opts.hitlOperatorFile;
+    const hitlFileWait =
+      opts.hitlProofDir != null || resumeFile != null || opts.hitlOperatorFile != null;
+    const waitForOperator = hitlFileWait
+      ? createFileWaitForOperator({
+          proofDir: opts.hitlProofDir ?? "evidence/hitl-proof",
+          resumeFile,
+          operatorFile: opts.hitlOperatorFile,
+        })
+      : undefined;
 
     const driver = new PlaywrightSurfaceDriver({ headless: !opts.headed });
     const result = await discoverCapability({
@@ -47,6 +71,7 @@ program
       confirmIrreversible: opts.confirmIrreversible,
       allowSyntheticFallback: opts.syntheticFallback,
       refuseIfArtifactExists: opts.refuseIfArtifact,
+      waitForOperator,
     });
 
     console.log(

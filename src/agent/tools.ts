@@ -135,7 +135,8 @@ export const DISCOVERY_TOOLS = [
           successDescription: { type: "string" },
           successText: {
             type: "string",
-            description: "Visible text proving success (used as success checkpoint)",
+            description:
+              "STABLE visible text proving success for any params (e.g. 'Member located'). Never a specific balance or member id.",
           },
           parameters: {
             type: "array",

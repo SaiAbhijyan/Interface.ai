@@ -1,0 +1,4 @@
+[2026-09-07T23:26:39.905Z] HITL pause sessionId=sess-hitl-proof reason=replay stuck (proof)
+attach: Stub HITL: headed Playwright page retained (proof script; no CDP attach).
+waiting for resume file…
+[2026-09-07T23:26:39.958Z] Resume signal received: Operator cleared gate (hitl-proof script).

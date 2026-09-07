@@ -1,7 +1,8 @@
 import fs from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
-import OpenAI from "openai";
+import type OpenAI from "openai";
+import { createOpenAIClient } from "../llm/openai-client.js";
 import {
   CapabilityArtifactSchema,
   type ActionType,
@@ -9,7 +10,7 @@ import {
   type Locator,
   type Step,
 } from "../artifact/schema.js";
-import type { SurfaceDriver, DriverLocator } from "../surface/types.js";
+import type { SurfaceDriver, DriverLocator, HumanSessionHandle } from "../surface/types.js";
 import {
   assertUrlAllowed,
   assertIrreversibleAllowed,
@@ -17,11 +18,11 @@ import {
   PolicyViolation,
 } from "../guardrails/allowlist.js";
 import { gateAction, sanitizeToolArgs, resolveIrreversible } from "../guardrails/action-gate.js";
-import { assertNoSecretsInArtifactJson, redactText, redactObject, redactObserveSnapshot } from "../guardrails/redaction.js";
+import { assertNoSecretsInArtifactJson, assertNoSecretsInEvidenceDir, redactText, redactObject, redactObserveSnapshot } from "../guardrails/redaction.js";
 import { artifactJsonFileName } from "../guardrails/safe-path.js";
 
 import { RunLogger } from "../observability/logger.js";
-import { escalateToHuman } from "../hitl/handoff.js";
+import { escalateToHuman, type InterventionRequest } from "../hitl/handoff.js";
 import { DISCOVERY_TOOLS } from "./tools.js";
 import {
   assertKnownDiscoveryTool,
@@ -61,6 +62,11 @@ export type DiscoverOptions = {
   allowSyntheticFallback?: boolean;
   /** If set and the file exists, refuse LLM rediscovery — prefer deterministic replay */
   refuseIfArtifactExists?: string;
+  /** Manual HITL: operator signal (required when HITL_MODE=manual and escalate tool fires) */
+  waitForOperator?: (
+    handle: HumanSessionHandle,
+    req: InterventionRequest,
+  ) => Promise<string>;
 };
 
 export type DiscoverResult = {
@@ -215,11 +221,11 @@ export async function discoverCapability(opts: DiscoverOptions): Promise<Discove
   }
 
   const runId = randomUUID().slice(0, 8);
-  const evidenceDir = path.join(opts.evidenceDir, `discover-${runId}`);
+  const evidenceDir = path.join(opts.evidenceDir, `discover-live-${runId}`);
   fs.mkdirSync(evidenceDir, { recursive: true });
   const logger = new RunLogger({ runId, dir: evidenceDir });
   const model = opts.model ?? process.env.OPENAI_MODEL ?? "gpt-4o";
-  const client = new OpenAI({ apiKey });
+  const client = createOpenAIClient(apiKey);
   const maxSteps = opts.maxSteps ?? 20;
   const recorded: Recorded[] = [];
   const extracted: Record<string, string> = {};
@@ -236,10 +242,11 @@ Runtime params available (redacted): ${JSON.stringify(redactObject(params))}
 
 Rules:
 - Prefer accessibility locators: role+name, label, text. Never invent test ids (there are none).
-- Results may be inside an iframe titled "Lookup Results" — set frame accordingly.
+- Results may be inside an iframe titled "Lookup Results" — set frame accordingly on observe/extract/click.
 - Call observe before acting when unsure.
 - Bind fills to paramName when the value comes from runtime params.
 - When the goal is met, call done with a clear capability contract.
+- successText must be a STABLE visible marker that works for ANY member (e.g. "Member located"), NEVER a specific balance, member id, or one-run value.
 - Escalate if stuck after several attempts — do not invent new tools or recovery actions.
 - Only call tools from the provided schema (observe/click/fill/select/navigate/extract/done/escalate). Never invent tools.
 - Do not invent secrets or PII. Do not navigate off the allowlisted host.`;
@@ -428,6 +435,7 @@ Rules:
                 screenshotPath: fs.existsSync(shot) ? shot : undefined,
                 createdAt: new Date().toISOString(),
               },
+              waitForOperator: opts.waitForOperator,
             });
             toolResult = "human resumed control; continue";
             break;
@@ -503,7 +511,15 @@ Rules:
     }
   }
 
-  const successText = String(donePayload.successText);
+  // Prefer a stable success marker over instance-specific balances / member ids.
+  let successText = String(donePayload.successText ?? "").trim();
+  if (!successText || /^\$?[\d,]+(?:\.\d{2})?$/.test(successText) || /\d{4,}/.test(successText)) {
+    successText = "Member located";
+  }
+  const frameFromExtract = steps
+    .map((s) => s.locator?.frame)
+    .find((f): f is string => typeof f === "string" && f.length > 0);
+  const successFrame = frameFromExtract ?? "Lookup Results";
   const artifact: CapabilityArtifact = CapabilityArtifactSchema.parse({
     version: "1.0.0",
     name: String(donePayload.name),
@@ -519,7 +535,14 @@ Rules:
     successCheckpoint: {
       id: "success",
       description: String(donePayload.successDescription),
-      locator: { strategy: "text", value: successText, alternatives: [] },
+      locator: {
+        strategy: "text",
+        value: successText,
+        frame: successFrame,
+        alternatives: [
+          { strategy: "text", value: "Savings Balance", frame: successFrame },
+        ],
+      },
       expectText: successText,
       businessOutcomes: [
         {
@@ -553,6 +576,30 @@ Rules:
     },
   });
 
+  // Before extract steps, ensure the preceding Search/action click carries a BO checkpoint
+  // so MEM_NOT_FOUND is classified as business_outcome rather than extract hard_failure.
+  const firstExtractIdx = artifact.steps.findIndex((s) => s.action === "extract");
+  if (firstExtractIdx > 0) {
+    const prior = artifact.steps[firstExtractIdx - 1];
+    if (prior && (prior.action === "click" || prior.action === "press") && !prior.checkpoint) {
+      const frame = artifact.steps[firstExtractIdx]?.locator?.frame ?? "Lookup Results";
+      prior.checkpoint = {
+        id: "after-search",
+        description: "Results iframe populated (member found or not found)",
+        locator: {
+          strategy: "text",
+          value: "Member",
+          frame,
+          alternatives: [
+            { strategy: "text", value: "MEMBER NOT FOUND", frame },
+            { strategy: "text", value: "Savings Balance", frame },
+          ],
+        },
+        businessOutcomes: artifact.successCheckpoint.businessOutcomes ?? [],
+      };
+    }
+  }
+
   // Attach extract locators onto outputs when possible
   for (const out of artifact.outputs) {
     const extractStep = steps.find((s) => s.action === "extract" && s.outputName === out.name);
@@ -571,6 +618,7 @@ Rules:
   logger.info("discover", "Discovery complete — artifact saved", { outPath, name: artifact.name });
   await opts.driver.close();
   await logger.close();
+  assertNoSecretsInEvidenceDir(evidenceDir);
 
   return { artifact, evidenceDir, logPath: logger.logPath, synthetic: false };
 }
@@ -632,5 +680,6 @@ async function syntheticDiscover(opts: DiscoverOptions): Promise<DiscoverResult>
   fs.writeFileSync(path.join(artDir, artifactJsonFileName(artifact.name)), json);
 
   await logger.close();
+  assertNoSecretsInEvidenceDir(evidenceDir);
   return { artifact, evidenceDir, logPath: logger.logPath, synthetic: true };
 }
